@@ -82,7 +82,6 @@ Repeat → `{"status":"duplicate"}`. Invalid phone/name → 422 (raw lead is sto
 5. Pipeline stage is per signup row; "Failed" requires a reason.
 **Security posture** (not "unhackable"): SQLAlchemy parameterised queries; Pydantic validation; HMAC-SHA256 signed links; OTP rate limit; signed expiring tokens with PBKDF2 admin passwords; admin routes protected; CORS limited to `FRONTEND_URL`; no secrets in repo; phones masked for members. Gaps: the Meta endpoint has no signature check, tokens are in localStorage, rate limit is per-phone only. Production: Postgres, Redis for sessions/OTP, HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS.
 
-## 9. Known Issues and Next Steps
-- Not built: fraud queue, payouts, override UI, Meta leads view, Excel export, import preview, Tier 3, React/Tailwind frontend, automated tests, video.
-- Single-file backend `main.py` should be split into routers/services.
-- Roadmap (Tier 4): ML analytics with forecasting, Postgres/Redis scaling, production payment gateway flow, LLM rule suggestions (admin-approved, never auto-committed), audit logs, RBAC, security headers.
+
+
+
