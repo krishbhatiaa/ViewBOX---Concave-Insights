@@ -49,7 +49,8 @@ Open http://localhost:8000 (UI) and http://localhost:8000/docs (API). Run from `
 | Tier 3 "wow" feature | Not done |
 
 ## 6. Database Design
-All tables from the brief exist in `backend/app/models.py`. Diagrams: [`design/01_user_flow.md`](design/01_user_flow.md), [`design/02_database.md`](design/02_database.md) (Mermaid). One extension: `referrals` has one row per signup (nullable `referrer_id`) so ops can mark Fit/Completed for every member.
+All tables from the brief exist in `backend/app/models.py`. Diagrams (PNG/SVG + Graphviz source) are in [`/design`](design/): ![user flow](design/user_flow.png) ![database](design/db_diagram.png)
+One extension: `referrals` has one row per signup (nullable `referrer_id`) so ops can mark Fit/Completed for every member; `surveys.amount` was added for payouts.
 
 ## 7. API Endpoints
 Interactive docs at `/docs`. Key ones:
