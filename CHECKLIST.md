@@ -13,8 +13,8 @@ Scoring: Thinking 30% - UI/UX 30% - Code 20% - Git and Docs 20%. A flawless core
 - [x] Source dashboard (sign-ups / Fit / Completed)
 - [x] Messy CSV import never crashes, reports counts + reasons
 - [x] `POST /api/meta/lead` with dedupe + invalid handling
-- [ ] **BUG: marking "Completed" must write a `completions` row** (ask which survey + quality check passed), so the 3-month cool-off really triggers
-- [ ] **Admin UI to create surveys + rules** (title, deadline, quota, amount, rules with Strict/Flexible)
+- [x] **FIXED: marking "Completed" must write a `completions` row** (ask which survey + quality check passed), so the 3-month cool-off really triggers
+- [x] **Admin UI to create surveys + rules** (title, deadline, quota, amount, rules with Strict/Flexible)
 - [ ] Profile as its own step right after first login (brief: "filled once after first login")
 - [ ] Save every computed result to `eligibility_results`
 - [ ] Grid status filter also supports Approved / Rejected / Waitlisted (per survey)
@@ -23,7 +23,7 @@ Scoring: Thinking 30% - UI/UX 30% - Code 20% - Git and Docs 20%. A flawless core
 - [x] First touch vs last touch: first-seen link kept in browser, sent as `first_src`; `source_id` = last touch, `first_touch_source_id` = first touch (no separate touch log yet)
 - [x] Source-conflict case verified: Instagram link + typed referrer => source Instagram, referrer credited
 - [x] Typed referrer on the fallback form (matched by exact phone number, not ambiguous names)
-- [ ] Member status screen shows Fit/Completed state + payment/bonus status so they need not call the team
+- [x] Member status screen shows Fit/Completed state + payment/bonus status so they need not call the team
 
 ## 2. UI/UX - 30% of score (P0)
 For EVERY screen confirm empty, loading and error states: 
@@ -35,7 +35,7 @@ For EVERY screen confirm empty, loading and error states:
 - [ ] Copy-to-clipboard button for referral link and source links
 - [ ] Sticky filter bar + obvious "Export current view" button on admin grid
 - [ ] Consistent spacing/type/colour tokens (one design system)
-- [ ] Replace `prompt()` / `alert()` for Fail reason with a small modal
+- [x] Replace `prompt()` / `alert()` for Fail reason with a small modal
 - [ ] Optional: port to React + Vite + Tailwind ONLY if core is finished (risk vs reward: vanilla is acceptable)
 
 ## 3. Code quality - 20% (P0/P1)

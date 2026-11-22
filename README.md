@@ -42,9 +42,12 @@ Open http://localhost:8000 (UI) and http://localhost:8000/docs (API). Run from `
 | `POST /api/meta/lead` (dedupe, invalid flagged) | Done |
 | Empty / loading / error states | Done (manually checked, no UI tests) |
 | Fraud flags + review queue | Not done (tables exist) |
-| Payout ledger / approval | Not done (tables exist) |
+| Payout ledger / approval | Partly done (payout rows created on completion; approve -> paid enforced by API; no admin ledger screen) |
 | Import preview before commit | Partly done (report after import) |
 | Admin manual override | Partly done (eligibility honours overrides; no UI/endpoint) |
+| Admin creates surveys + Strict/Flexible rules (UI) | Done |
+| Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
+| Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | Meta leads admin view | Not done |
 | Tier 3 "wow" feature | Not done |
 
@@ -61,7 +64,10 @@ Interactive docs at `/docs`. Key ones:
 | GET | `/api/me`, `/api/surveys`, `/api/me/referrals` | Member portal (phones masked) |
 | POST/GET | `/api/admin/login`, `/api/admin/sources` | Admin auth; sources + signed links |
 | GET | `/api/admin/members?q=&source_id=&city=&status=` | Grid; `/export` returns same view as CSV |
-| POST | `/api/admin/referrals/{id}/stage` | `{stage:"Failed",failure_reason:"…"}` |
+| POST | `/api/admin/referrals/{id}/stage` | `{stage:"Completed",survey_id:1,quality_check_passed:true}` records completion, starts cool-off, creates payouts; `{stage:"Failed",failure_reason:"…"}` |
+| GET/POST | `/api/admin/surveys` | List / create survey with rules |
+| GET/POST | `/api/admin/payouts`, `/api/admin/payouts/{id}/status?status=Approved\|Paid` | Ops approval before Paid |
+| GET | `/api/me/status` | Member's own stage, completions, earnings |
 | GET | `/api/admin/source-stats` | Per-source funnel |
 | POST | `/api/admin/import` | Multipart CSV → `{total_rows,imported,fixed,skipped,details[]}` |
 | POST | `/api/meta/lead` | Meta lead ad |
@@ -79,7 +85,8 @@ Repeat → `{"status":"duplicate"}`. Invalid phone/name → 422 (raw lead is sto
 2. **First vs last touch**: the first signed link a visitor opens is remembered in the browser and sent as `first_src`; the link used at signup is `source_id` (last touch, for conversion). Both stored. Not done: a separate log of every visit.
 3. **Payments**: Razorpay (UPI/cards/bank, sandbox). Ops approves → Orders/Payouts API → capture → webhook updates status → "Paid"; failed/pending handled by webhook retries + polling. Not built.
 4. Cool-off = 90 days from last quality-passed completion. Invalid/forged links are ignored (signup still works) and the member is told.
-5. Pipeline stage is per signup row; "Failed" requires a reason.
+5. Payout amounts: survey payment = `surveys.amount`; referral bonus = flat `REFERRAL_BONUS` (default 100, env). Cool-off starts only when the quality check passed; a failed quality check marks the stage Failed with a reason and creates no payout.
+6. Pipeline stage is per signup row; "Failed" requires a reason.
 **Security posture** (not "unhackable"): SQLAlchemy parameterised queries; Pydantic validation; HMAC-SHA256 signed links; OTP rate limit; signed expiring tokens with PBKDF2 admin passwords; admin routes protected; CORS limited to `FRONTEND_URL`; no secrets in repo; phones masked for members. Gaps: the Meta endpoint has no signature check, tokens are in localStorage, rate limit is per-phone only. Production: Postgres, Redis for sessions/OTP, HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS.
 
 ## 9. Known Issues and Next Steps
