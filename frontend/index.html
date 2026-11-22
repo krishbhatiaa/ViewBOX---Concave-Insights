@@ -16,6 +16,9 @@ th{position:sticky;top:0;background:var(--card)}.otp{font-size:24px;letter-spaci
 <div id="app"></div></main>
 <script>
 const $=s=>document.querySelector(s),app=$('#app'),qs=new URLSearchParams(location.search);
+if(qs.get('src')){localStorage.vb_src=qs.get('src');if(!localStorage.vb_first)localStorage.vb_first=qs.get('src')}
+if(qs.get('ref'))localStorage.vb_ref=qs.get('ref');
+const L=()=>({src:qs.get('src')||localStorage.vb_src||'',ref:qs.get('ref')||localStorage.vb_ref||'',first:localStorage.vb_first||''});
 let tok={member:localStorage.mt,admin:localStorage.at},ctx={phone:'',otp:''};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function api(p,o={},role){
@@ -35,14 +38,17 @@ function phoneStep(e=''){app.innerHTML=`<div class="card"><h2>Welcome to ViewBox
 async function sendOtp(){ctx.phone=$('#ph').value.trim();try{const r=await api('/api/otp/request',{method:'POST',body:JSON.stringify({phone:ctx.phone})});ctx.isMember=r.is_member;
   app.innerHTML=`<div class="card"><h2>Verify</h2><p class="mute">Demo mode: your OTP is shown here (no SMS sent).</p><p class="otp">${r.otp}</p><input id=otp inputmode=numeric maxlength=6 placeholder="Enter OTP" value="${r.otp}"><div id=e></div><button onclick="verify()">Continue</button></div>`}catch(e){phoneStep(msg(e.message))}}
 async function verify(){ctx.otp=$('#otp').value.trim();if(ctx.isMember){try{const r=await api('/api/login',{method:'POST',body:JSON.stringify({phone:ctx.phone,otp:ctx.otp})});localStorage.mt=tok.member=r.token;home()}catch(e){$('#e').innerHTML=msg(e.message)}}else signupForm()}
-async function signupForm(){let how='';if(!qs.get('src')&&!qs.get('ref')){const s=await api('/api/sources/public').catch(()=>[]);how=`<label>How did you hear about us?<select id=how><option value="">Select…</option>${s.map(x=>`<option value=${x.id}>${esc(x.name)}</option>`).join('')}</select></label>`}
-  app.innerHTML=`<div class="card"><h2>Tell us about you</h2><div id=e></div><input id=nm placeholder="Full name"><label>Date of birth<input id=dob type=date></label>
+async function signupForm(){const l=L();const rs=await api(`/api/links/resolve?src=${encodeURIComponent(l.src)}&ref=${encodeURIComponent(l.ref)}`).catch(()=>({needs_fallback:true}));let how='';
+  const banner=rs.source?`<p class=mute>You were invited via ${esc(rs.source)}</p>`:rs.referrer?`<p class=mute>Invited by ${esc(rs.referrer)}</p>`:'';
+  const rph=l.ref?'':`<input id=rph inputmode=numeric maxlength=10 placeholder="Referrer's mobile number (optional)">`;
+  if(rs.needs_fallback){const s=await api('/api/sources/public').catch(()=>[]);how=`<label>How did you hear about us?<select id=how><option value="">Select…</option>${s.map(x=>`<option value=${x.id}>${esc(x.name)}</option>`).join('')}</select></label>`}
+  app.innerHTML=`<div class="card"><h2>Tell us about you</h2>${banner}<div id=e></div><input id=nm placeholder="Full name"><label>Date of birth<input id=dob type=date></label>
   <select id=g><option value="">Gender</option><option>Male</option><option>Female</option><option>Other</option></select><input id=city placeholder="City">
   <select id=inc><option value="">Income range</option><option>&lt;5L</option><option>5-10L</option><option>10L+</option></select>
-  <input id=ints placeholder="Interests (comma separated, e.g. food, tech)">${how}<button onclick="signup()">Join</button></div>`}
-async function signup(){const b={phone:ctx.phone,otp:ctx.otp,name:$('#nm').value,dob:$('#dob').value,gender:$('#g').value,city:$('#city').value,income_range:$('#inc').value,
-  interests:$('#ints').value.split(',').map(x=>x.trim()).filter(Boolean),src:qs.get('src'),ref:qs.get('ref'),how_heard_source_id:+($('#how')?.value)||null};
-  try{const r=await api('/api/signup',{method:'POST',body:JSON.stringify(b)});localStorage.mt=tok.member=r.token;home()}catch(e){$('#e').innerHTML=msg(e.message)}}
+  <input id=ints placeholder="Interests (comma separated, e.g. food, tech)">${how}${rph}<button onclick="signup()">Join</button></div>`}
+async function signup(){const l=L(),b={phone:ctx.phone,otp:ctx.otp,name:$('#nm').value,dob:$('#dob').value,gender:$('#g').value,city:$('#city').value,income_range:$('#inc').value,
+  interests:$('#ints').value.split(',').map(x=>x.trim()).filter(Boolean),src:l.src||null,ref:l.ref||null,first_src:l.first||null,referrer_phone:$('#rph')?.value||null,how_heard_source_id:+($('#how')?.value)||null};
+  try{const r=await api('/api/signup',{method:'POST',body:JSON.stringify(b)});['vb_src','vb_ref','vb_first'].forEach(k=>localStorage.removeItem(k));localStorage.mt=tok.member=r.token;home()}catch(e){$('#e').innerHTML=msg(e.message)}}
 async function home(){app.innerHTML='<div class="card">Loading…</div>';
   try{const[m,s,r]=await Promise.all([api('/api/me',{},'member'),api('/api/surveys',{},'member'),api('/api/me/referrals',{},'member')]);
   app.innerHTML=`<div class="card"><h2>Hi ${esc(m.name)}</h2><p class="mute">${esc(m.phone)} · ${esc(m.city)}</p>${m.next_eligible_date?`<p class="Waitlisted">Cool-off active: you can join new surveys again on ${m.next_eligible_date}.</p>`:''}
@@ -69,7 +75,7 @@ async function rows(){$('#g').innerHTML='Loading…';try{const d=await api('/api
 async function stage(id,s){let r=null;if(s==='Failed'){r=prompt('Reason for failure?');if(!r)return}try{await api(`/api/admin/referrals/${id}/stage`,{method:'POST',body:JSON.stringify({stage:s,failure_reason:r})},'admin');rows()}catch(e){alert(e.message)}}
 async function exp(){try{const b=await api('/api/admin/members/export?'+fq(),{},'admin');const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='members.csv';a.click()}catch(e){alert(e.message)}}
 async function sources(){app.innerHTML=atabs()+'<div class=card>Loading…</div>';try{const s=await api('/api/admin/sources',{},'admin');
-  app.innerHTML=atabs()+`<div class=card><h3>Add source</h3><div id=e></div><div class=row><input id=sn placeholder="Name e.g. WhatsApp - Pune"><select id=st><option>whatsapp</option><option>staff</option><option>instagram</option><option>facebook</option><option>website</option><option>referral</option><option>linkedin</option></select><button onclick=addSrc()>Add</button></div></div>
+  app.innerHTML=atabs()+`<div class=card><h3>Add source</h3><div id=e></div><div class=row><input id=sn placeholder="Name e.g. WhatsApp - Pune"><input id=st list=types placeholder="Type e.g. whatsapp"><datalist id=types><option>whatsapp<option>staff<option>instagram<option>facebook<option>website<option>referral<option>linkedin</datalist><button onclick=addSrc()>Add</button></div></div>
   <div class="card wrap"><table><tr><th>Name</th><th>Type</th><th>Signed signup link</th></tr>${s.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.type}</td><td><input readonly value="${esc(x.link)}" onclick="this.select()"></td></tr>`).join('')}</table></div>`}catch(e){app.innerHTML=atabs()+msg(e.message)}}
 async function addSrc(){try{await api('/api/admin/sources',{method:'POST',body:JSON.stringify({name:$('#sn').value,type:$('#st').value})},'admin');sources()}catch(e){$('#e').innerHTML=msg(e.message)}}
 async function stats(){app.innerHTML=atabs()+'<div class=card>Loading…</div>';try{const d=await api('/api/admin/source-stats',{},'admin');

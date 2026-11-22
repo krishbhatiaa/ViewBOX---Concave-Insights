@@ -76,7 +76,7 @@ Repeat → `{"status":"duplicate"}`. Invalid phone/name → 422 (raw lead is sto
 
 ## 8. Assumptions and Decisions
 1. **Source conflict**: Instagram link + referrer → `source`=Instagram, `referrer_id`=member. Bonus goes to the referrer, source analytics to Instagram. A `?ref=` alone sets source to "Referral".
-2. **First vs last touch**: both columns exist. At signup they are equal; a later touch endpoint would update `source_id` (last touch, used for conversion) and keep `first_touch_source_id` (attribution). Only the signup write is built.
+2. **First vs last touch**: the first signed link a visitor opens is remembered in the browser and sent as `first_src`; the link used at signup is `source_id` (last touch, for conversion). Both stored. Not done: a separate log of every visit.
 3. **Payments**: Razorpay (UPI/cards/bank, sandbox). Ops approves → Orders/Payouts API → capture → webhook updates status → "Paid"; failed/pending handled by webhook retries + polling. Not built.
 4. Cool-off = 90 days from last quality-passed completion. Invalid/forged links are ignored (signup still works) and the member is told.
 5. Pipeline stage is per signup row; "Failed" requires a reason.

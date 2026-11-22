@@ -47,7 +47,8 @@ class SignupIn(LoginIn):
     name: str = Field(min_length=2, max_length=80); dob: date
     gender: Literal["Male", "Female", "Other"]; city: str = Field(min_length=2, max_length=60)
     income_range: str; interests: List[str] = []
-    src: Optional[str] = None; ref: Optional[str] = None; how_heard_source_id: Optional[int] = None
+    src: Optional[str] = None; ref: Optional[str] = None; first_src: Optional[str] = None
+    how_heard_source_id: Optional[int] = None; referrer_phone: Optional[str] = None
 class AdminLogin(BaseModel): email: str; password: str
 class SourceIn(BaseModel): name: str = Field(min_length=2, max_length=60); type: str = Field(min_length=2, max_length=30)
 class StageIn(BaseModel):
@@ -87,12 +88,26 @@ def signup(b: SignupIn, db: Session = Depends(db_dep)):
         rid = sec.verify_link("ref", b.ref)
         referrer = db.get(Member, int(rid)) if rid and rid.isdigit() else None
         if not referrer: notes.append("Referral link could not be verified and was ignored.")
+    if not referrer and b.referrer_phone:  # typed referrer: matched by exact phone, never by ambiguous name
+        referrer = db.query(Member).filter_by(phone=norm_phone(b.referrer_phone) or "-").first()
+        if not referrer or referrer.phone == b.phone: referrer = None; notes.append("We couldn't find a member with that referrer number.")
+    first = None; fslug = sec.verify_link("src", b.first_src) if b.first_src else None
+    if fslug: first = db.query(Source).filter_by(unique_slug=fslug).first()
     if not src and referrer: src = db.query(Source).filter_by(type="referral").first()  # ref only -> source=Referral
     if not src and b.how_heard_source_id: src = db.get(Source, b.how_heard_source_id)
     m = Member(phone=b.phone, name=b.name.strip(), dob=b.dob, gender=b.gender, city=b.city.strip().title(), income_range=b.income_range,
-               interests=",".join(b.interests), source_id=src and src.id, first_touch_source_id=src and src.id, referrer_id=referrer and referrer.id)
+               interests=",".join(b.interests), source_id=src and src.id, first_touch_source_id=(first or src) and (first or src).id, referrer_id=referrer and referrer.id)
     db.add(m); db.flush(); db.add(Referral(referrer_id=m.referrer_id, referred_member_id=m.id)); db.commit()
     return {"token": sec.make_token(m.id, "member"), "notes": notes}
+
+@app.get("/api/links/resolve")
+def resolve_links(src: str = "", ref: str = "", db: Session = Depends(db_dep)):
+    """Lets the signup page greet the visitor and decide whether to show 'How did you hear about us?'."""
+    slug = sec.verify_link("src", src) if src else None
+    s = db.query(Source).filter_by(unique_slug=slug).first() if slug else None
+    rid = sec.verify_link("ref", ref) if ref else None
+    r = db.get(Member, int(rid)) if rid and rid.isdigit() else None
+    return {"source": s and s.name, "referrer": r and r.name.split()[0], "needs_fallback": not s and not r}
 
 @app.get("/api/sources/public")
 def public_sources(db: Session = Depends(db_dep)):
@@ -138,7 +153,9 @@ def list_sources(_=Depends(admin_auth), db: Session = Depends(db_dep)):
 @app.post("/api/admin/sources", status_code=201)
 def add_source(b: SourceIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
     if db.query(Source).filter_by(name=b.name).first(): raise HTTPException(409, "A source with this name already exists.")
-    s = Source(name=b.name, type=b.type.lower(), unique_slug=slugify(b.name)); db.add(s); db.commit()
+    base = slugify(b.name) or "source"; slug, n = base, 2
+    while db.query(Source).filter_by(unique_slug=slug).first(): slug, n = f"{base}-{n}", n + 1
+    s = Source(name=b.name, type=slugify(b.type) or "other", unique_slug=slug); db.add(s); db.commit()
     return {"id": s.id, "name": s.name, "type": s.type, "link": link_for(s)}
 
 @app.post("/api/admin/surveys", status_code=201)

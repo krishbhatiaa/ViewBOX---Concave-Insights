@@ -20,9 +20,9 @@ Scoring: Thinking 30% - UI/UX 30% - Code 20% - Git and Docs 20%. A flawless core
 - [ ] Grid status filter also supports Approved / Rejected / Waitlisted (per survey)
 - [ ] Excel (.xlsx) export in addition to CSV (openpyxl)
 - [ ] Test with the REAL `viewbox_respondents_sample.csv` (~200 rows); fix parser for its actual mess (dates, phones, gender, duplicates, blank rows, encoding)
-- [ ] First touch vs last touch: log each touch; on a later signup set `source_id` = last touch, keep `first_touch_source_id`
-- [ ] Source-conflict case verified: Instagram link + typed referrer => source Instagram, referrer credited
-- [ ] "Typed referrer name" input on the fallback form (the brief says new members forget to enter who referred them)
+- [x] First touch vs last touch: first-seen link kept in browser, sent as `first_src`; `source_id` = last touch, `first_touch_source_id` = first touch (no separate touch log yet)
+- [x] Source-conflict case verified: Instagram link + typed referrer => source Instagram, referrer credited
+- [x] Typed referrer on the fallback form (matched by exact phone number, not ambiguous names)
 - [ ] Member status screen shows Fit/Completed state + payment/bonus status so they need not call the team
 
 ## 2. UI/UX - 30% of score (P0)
