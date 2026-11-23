@@ -1,9 +1,10 @@
 import csv, io, json, logging, os, re
 from datetime import date, datetime
 from typing import Any, List, Literal, Optional
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -12,9 +13,11 @@ from .eligibility import evaluate, next_eligible_date
 from .models import *
 
 log = logging.getLogger("viewbox")
-FRONT = os.getenv("FRONTEND_URL", "http://localhost:8000")
+# CORS: FRONTEND_URL may be comma-separated (e.g. Vite dev server + built app)
+_origins = [o.strip() for o in os.getenv("FRONTEND_URL", "http://localhost:8000").split(",") if o.strip()]
+_origins += ["http://localhost:5173", "http://127.0.0.1:5173"]
 app = FastAPI(title="ViewBox Panel System")
-app.add_middleware(CORSMiddleware, allow_origins=[FRONT], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=list(dict.fromkeys(_origins)), allow_methods=["*"], allow_headers=["*"])
 Base.metadata.create_all(engine)
 
 @app.exception_handler(Exception)
@@ -38,7 +41,10 @@ def slugify(s): return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 def norm_phone(p):
     d = re.sub(r"\D", "", str(p or ""))[-10:]
     return d if re.fullmatch(r"[6-9]\d{9}", d) else None
-def link_for(src): return f"{FRONT}/signup?src={sec.sign_link('src', src.unique_slug)}"
+def base_url(request: Request) -> str:
+    """Origin the caller actually used (works behind Vite proxy and in production)."""
+    return str(request.base_url).rstrip("/")
+def link_for(src, request: Request): return f"{base_url(request)}/signup?src={sec.sign_link('src', src.unique_slug)}"
 
 # ---------- schemas ----------
 class PhoneIn(BaseModel): phone: str = Field(pattern=r"^[6-9]\d{9}$")
@@ -130,10 +136,10 @@ def me(t, db):
     return m
 
 @app.get("/api/me")
-def get_me(t=Depends(member_auth), db: Session = Depends(db_dep)):
+def get_me(request: Request, t=Depends(member_auth), db: Session = Depends(db_dep)):
     m = me(t, db); d = next_eligible_date(db, m)
     return {"id": m.id, "name": m.name, "phone": sec.mask(m.phone), "city": m.city, "interests": [i for i in (m.interests or "").split(",") if i],
-            "next_eligible_date": d and d.isoformat(), "referral_link": f"{FRONT}/signup?ref={sec.sign_link('ref', str(m.id))}"}
+            "next_eligible_date": d and d.isoformat(), "referral_link": f"{base_url(request)}/signup?ref={sec.sign_link('ref', str(m.id))}"}
 
 @app.get("/api/surveys")
 def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
@@ -165,16 +171,16 @@ def admin_login(b: AdminLogin, db: Session = Depends(db_dep)):
     return {"token": sec.make_token(a.email, "admin")}
 
 @app.get("/api/admin/sources")
-def list_sources(_=Depends(admin_auth), db: Session = Depends(db_dep)):
-    return [{"id": s.id, "name": s.name, "type": s.type, "link": link_for(s)} for s in db.query(Source).order_by(Source.name)]
+def list_sources(request: Request, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return [{"id": s.id, "name": s.name, "type": s.type, "link": link_for(s, request)} for s in db.query(Source).order_by(Source.name)]
 
 @app.post("/api/admin/sources", status_code=201)
-def add_source(b: SourceIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+def add_source(b: SourceIn, request: Request, _=Depends(admin_auth), db: Session = Depends(db_dep)):
     if db.query(Source).filter_by(name=b.name).first(): raise HTTPException(409, "A source with this name already exists.")
     base = slugify(b.name) or "source"; slug, n = base, 2
     while db.query(Source).filter_by(unique_slug=slug).first(): slug, n = f"{base}-{n}", n + 1
     s = Source(name=b.name, type=slugify(b.type) or "other", unique_slug=slug); db.add(s); db.commit()
-    return {"id": s.id, "name": s.name, "type": s.type, "link": link_for(s)}
+    return {"id": s.id, "name": s.name, "type": s.type, "link": link_for(s, request)}
 
 @app.post("/api/admin/surveys", status_code=201)
 def add_survey(b: SurveyIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
