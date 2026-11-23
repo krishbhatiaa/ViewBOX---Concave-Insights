@@ -27,7 +27,9 @@ def seed():
     i = Survey(title="ICICI Life Insurance Needs", description="finance insurance planning", deadline=now + timedelta(days=14), quota=30, amount=500)
     i.rules = [SurveyRule(rule_type="age", operator="between", value="30-60", strict_or_flexible="strict")]
     db.add_all([z, t, i]); db.flush()
-    db.add(Completion(member_id=k.id, survey_id=z.id, completed_at=now - timedelta(days=20), quality_check_passed=True)); db.commit(); db.close()
+    db.add(Completion(member_id=k.id, survey_id=z.id, completed_at=now - timedelta(days=20), quality_check_passed=True))
+    kr = db.query(Referral).filter_by(referred_member_id=k.id).first()
+    db.add_all([Payout(member_id=k.id, survey_id=z.id, amount=300, status="Paid"), Payout(member_id=p.id, survey_id=z.id, referral_id=kr.id, amount=100, status="Pending")]); db.commit(); db.close()
     print("Seeded. Admin: admin@concave.test / admin123 | Members: phones 9000000001..9000000007")
 
 if __name__ == "__main__": seed()

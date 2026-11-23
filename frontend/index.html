@@ -1,81 +1,13 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ViewBox Panel</title>
-<style>
-:root{--bg:#f6f7fb;--card:#fff;--ink:#14213d;--mute:#5a6478;--pri:#3b5bdb;--ok:#1a7f4b;--bad:#b42318;--warn:#a15c07;--line:#dfe3ec}
-@media(prefers-color-scheme:dark){:root{--bg:#10131a;--card:#181d27;--ink:#eef1f7;--mute:#a3acbd;--pri:#7b93ff;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--line:#2a3140}}
-*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
-main{max-width:960px;margin:0 auto;padding:16px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
-input,select,button{font:inherit;min-height:44px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);width:100%;margin:4px 0}
-button{background:var(--pri);color:#fff;border:0;cursor:pointer;font-weight:600}button.sec{background:transparent;color:var(--pri);border:1px solid var(--pri)}
-nav{display:flex;gap:8px;flex-wrap:wrap}nav button{width:auto}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
-.err{color:var(--bad)}.mute{color:var(--mute)}.tag{padding:2px 8px;border-radius:99px;font-size:13px;border:1px solid currentColor;white-space:nowrap}
-.Approved,.Completed{color:var(--ok)}.Rejected,.Failed{color:var(--bad)}.Waitlisted,.Fit{color:var(--warn)}
-.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
-th{position:sticky;top:0;background:var(--card)}.otp{font-size:24px;letter-spacing:4px;font-weight:700}
-</style></head><body><main>
-<nav><button class="sec" onclick="show('member')">Member</button><button class="sec" onclick="show('admin')">Admin</button></nav>
-<div id="app"></div></main>
-<script>
-const $=s=>document.querySelector(s),app=$('#app'),qs=new URLSearchParams(location.search);
-let tok={member:localStorage.mt,admin:localStorage.at},ctx={phone:'',otp:''};
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-async function api(p,o={},role){
-  const h={...(o.headers||{})};if(!(o.body instanceof FormData)&&o.body)h['Content-Type']='application/json';
-  if(role&&tok[role])h.Authorization='Bearer '+tok[role];
-  try{const r=await fetch(p,{...o,headers:h});
-    if(!r.ok){let d={};try{d=await r.json()}catch{};const m=typeof d.detail==='string'?d.detail:'Please check the details you entered and try again.';
-      if(r.status===401&&role){tok[role]=null;show(role)}throw new Error(m)}
-    return r.headers.get('content-type')?.includes('json')?r.json():r.blob()}
-  catch(e){throw new Error(e.message==='Failed to fetch'?'Cannot reach the server. Check your connection.':e.message)}}
-const msg=(t,c='err')=>`<p class="${c}" role="alert">${esc(t)}</p>`;
-function show(w){w==='admin'?admin():member()}
-// ---------- member ----------
-function member(){tok.member?home():phoneStep()}
-function phoneStep(e=''){app.innerHTML=`<div class="card"><h2>Welcome to ViewBox</h2><p class="mute">Enter your mobile number to log in or join.</p>${e}
-<input id=ph inputmode=numeric maxlength=10 placeholder="10-digit mobile" value="${ctx.phone}"><button onclick="sendOtp()">Send OTP</button></div>`}
-async function sendOtp(){ctx.phone=$('#ph').value.trim();try{const r=await api('/api/otp/request',{method:'POST',body:JSON.stringify({phone:ctx.phone})});ctx.isMember=r.is_member;
-  app.innerHTML=`<div class="card"><h2>Verify</h2><p class="mute">Demo mode: your OTP is shown here (no SMS sent).</p><p class="otp">${r.otp}</p><input id=otp inputmode=numeric maxlength=6 placeholder="Enter OTP" value="${r.otp}"><div id=e></div><button onclick="verify()">Continue</button></div>`}catch(e){phoneStep(msg(e.message))}}
-async function verify(){ctx.otp=$('#otp').value.trim();if(ctx.isMember){try{const r=await api('/api/login',{method:'POST',body:JSON.stringify({phone:ctx.phone,otp:ctx.otp})});localStorage.mt=tok.member=r.token;home()}catch(e){$('#e').innerHTML=msg(e.message)}}else signupForm()}
-async function signupForm(){let how='';if(!qs.get('src')&&!qs.get('ref')){const s=await api('/api/sources/public').catch(()=>[]);how=`<label>How did you hear about us?<select id=how><option value="">Select…</option>${s.map(x=>`<option value=${x.id}>${esc(x.name)}</option>`).join('')}</select></label>`}
-  app.innerHTML=`<div class="card"><h2>Tell us about you</h2><div id=e></div><input id=nm placeholder="Full name"><label>Date of birth<input id=dob type=date></label>
-  <select id=g><option value="">Gender</option><option>Male</option><option>Female</option><option>Other</option></select><input id=city placeholder="City">
-  <select id=inc><option value="">Income range</option><option>&lt;5L</option><option>5-10L</option><option>10L+</option></select>
-  <input id=ints placeholder="Interests (comma separated, e.g. food, tech)">${how}<button onclick="signup()">Join</button></div>`}
-async function signup(){const b={phone:ctx.phone,otp:ctx.otp,name:$('#nm').value,dob:$('#dob').value,gender:$('#g').value,city:$('#city').value,income_range:$('#inc').value,
-  interests:$('#ints').value.split(',').map(x=>x.trim()).filter(Boolean),src:qs.get('src'),ref:qs.get('ref'),how_heard_source_id:+($('#how')?.value)||null};
-  try{const r=await api('/api/signup',{method:'POST',body:JSON.stringify(b)});localStorage.mt=tok.member=r.token;home()}catch(e){$('#e').innerHTML=msg(e.message)}}
-async function home(){app.innerHTML='<div class="card">Loading…</div>';
-  try{const[m,s,r]=await Promise.all([api('/api/me',{},'member'),api('/api/surveys',{},'member'),api('/api/me/referrals',{},'member')]);
-  app.innerHTML=`<div class="card"><h2>Hi ${esc(m.name)}</h2><p class="mute">${esc(m.phone)} · ${esc(m.city)}</p>${m.next_eligible_date?`<p class="Waitlisted">Cool-off active: you can join new surveys again on ${m.next_eligible_date}.</p>`:''}
-  <button class="sec" style="width:auto" onclick="localStorage.removeItem('mt');tok.member=null;member()">Log out</button></div>
-  <h3>Live surveys</h3>${s.length?s.map(x=>`<div class="card" style="${x.matches_interests?'border-color:var(--pri)':''}"><b>${esc(x.title)}</b> ${x.matches_interests?'<span class="tag" style="color:var(--pri)">Matches your interests</span>':''}
-  <p class="mute">${esc(x.description)} · ₹${x.amount} · closes ${(x.deadline||'').slice(0,10)}</p><span class="tag ${x.result}">${x.result}</span> ${esc(x.reason)}</div>`).join(''):'<div class="card mute">No live surveys right now. Check back soon.</div>'}
-  <h3>Invite friends</h3><div class="card"><p class="mute">Share your personal link. You earn a bonus when a friend completes a survey.</p><input readonly value="${esc(m.referral_link)}" onclick="this.select()">
-  ${r.length?`<div class=wrap><table><tr><th>Friend</th><th>Phone</th><th>Stage</th><th>Note</th></tr>${r.map(x=>`<tr><td>${esc(x.friend)}</td><td>${x.phone}</td><td><span class="tag ${x.stage}">${x.stage}</span></td><td>${esc(x.failure_reason||'')}</td></tr>`).join('')}</table></div>`:'<p class="mute">No friends invited yet.</p>'}</div>`}
-  catch(e){app.innerHTML=`<div class="card">${msg(e.message)}<button onclick="home()">Retry</button></div>`}}
-// ---------- admin ----------
-function admin(){tok.admin?grid():app.innerHTML=`<div class="card"><h2>Admin login</h2><div id=e></div><input id=em placeholder="Email" value="admin@concave.test"><input id=pw type=password placeholder="Password"><button onclick="alogin()">Log in</button></div>`}
-async function alogin(){try{const r=await api('/api/admin/login',{method:'POST',body:JSON.stringify({email:$('#em').value,password:$('#pw').value})});localStorage.at=tok.admin=r.token;grid()}catch(e){$('#e').innerHTML=msg(e.message)}}
-function atabs(){return`<nav><button onclick=grid()>Members</button><button onclick=sources()>Sources</button><button onclick=stats()>Source stats</button><button onclick=imp()>Import CSV</button><button class=sec onclick="localStorage.removeItem('at');tok.admin=null;admin()">Log out</button></nav>`}
-let F={q:'',source_id:'',city:'',status:''},t;
-const fq=()=>new URLSearchParams(Object.entries(F).filter(([,v])=>v)).toString();
-async function grid(){app.innerHTML=atabs()+`<div class="card" style="position:sticky;top:0;z-index:2"><div class=row><input id=q placeholder="Search name, ID, city…" value="${esc(F.q)}" oninput="F.q=this.value;clearTimeout(t);t=setTimeout(rows,250)">
-  <select id=src onchange="F.source_id=this.value;rows()"><option value="">All sources</option></select><input placeholder="City" value="${esc(F.city)}" oninput="F.city=this.value;clearTimeout(t);t=setTimeout(rows,250)">
-  <select onchange="F.status=this.value;rows()">${['','Lead','Fit','Completed','Failed','flagged'].map(s=>`<option value="${s}" ${F.status===s?'selected':''}>${s||'All statuses'}</option>`).join('')}</select><button onclick="exp()">Export CSV (current view)</button></div></div><div id=g class=card></div>`;
-  api('/api/admin/sources',{},'admin').then(s=>{$('#src').innerHTML+=s.map(x=>`<option value=${x.id} ${F.source_id==x.id?'selected':''}>${esc(x.name)}</option>`).join('')}).catch(()=>{});rows()}
-async function rows(){$('#g').innerHTML='Loading…';try{const d=await api('/api/admin/members?'+fq(),{},'admin');
-  $('#g').innerHTML=d.length?`<p class=mute>${d.length} members</p><div class=wrap><table><tr><th>ID</th><th>Name</th><th>Phone</th><th>City</th><th>Source</th><th>Referrer</th><th>Stage</th><th>Action</th></tr>${d.map(x=>`<tr><td>${x.id}</td><td>${esc(x.name)}</td><td>${x.phone}</td><td>${esc(x.city)}</td><td>${esc(x.source)}</td><td>${esc(x.referrer)}</td><td><span class="tag ${x.stage}">${x.stage}</span></td>
-  <td><button class=sec style="width:auto;min-height:36px" onclick="stage(${x.referral_id},'Fit')">Fit</button> <button class=sec style="width:auto;min-height:36px" onclick="stage(${x.referral_id},'Completed')">Completed</button> <button class=sec style="width:auto;min-height:36px" onclick="stage(${x.referral_id},'Failed')">Fail</button></td></tr>`).join('')}</table></div>`:'<p class=mute>No members match these filters.</p>'}
-  catch(e){$('#g').innerHTML=msg(e.message)}}
-async function stage(id,s){let r=null;if(s==='Failed'){r=prompt('Reason for failure?');if(!r)return}try{await api(`/api/admin/referrals/${id}/stage`,{method:'POST',body:JSON.stringify({stage:s,failure_reason:r})},'admin');rows()}catch(e){alert(e.message)}}
-async function exp(){try{const b=await api('/api/admin/members/export?'+fq(),{},'admin');const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='members.csv';a.click()}catch(e){alert(e.message)}}
-async function sources(){app.innerHTML=atabs()+'<div class=card>Loading…</div>';try{const s=await api('/api/admin/sources',{},'admin');
-  app.innerHTML=atabs()+`<div class=card><h3>Add source</h3><div id=e></div><div class=row><input id=sn placeholder="Name e.g. WhatsApp - Pune"><select id=st><option>whatsapp</option><option>staff</option><option>instagram</option><option>facebook</option><option>website</option><option>referral</option><option>linkedin</option></select><button onclick=addSrc()>Add</button></div></div>
-  <div class="card wrap"><table><tr><th>Name</th><th>Type</th><th>Signed signup link</th></tr>${s.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.type}</td><td><input readonly value="${esc(x.link)}" onclick="this.select()"></td></tr>`).join('')}</table></div>`}catch(e){app.innerHTML=atabs()+msg(e.message)}}
-async function addSrc(){try{await api('/api/admin/sources',{method:'POST',body:JSON.stringify({name:$('#sn').value,type:$('#st').value})},'admin');sources()}catch(e){$('#e').innerHTML=msg(e.message)}}
-async function stats(){app.innerHTML=atabs()+'<div class=card>Loading…</div>';try{const d=await api('/api/admin/source-stats',{},'admin');
-  app.innerHTML=atabs()+`<div class="card wrap"><h3>Source dashboard</h3>${d.length?`<table><tr><th>Source</th><th>Sign-ups</th><th>Fit</th><th>Completed</th></tr>${d.map(x=>`<tr><td>${esc(x.source)}</td><td>${x.signups}</td><td>${x.fit}</td><td>${x.completed}</td></tr>`).join('')}</table>`:'<p class=mute>No data yet.</p>'}</div>`}catch(e){app.innerHTML=atabs()+msg(e.message)}}
-function imp(){app.innerHTML=atabs()+`<div class=card><h3>Import respondents (CSV)</h3><p class=mute>Bad rows are fixed or skipped, never crash the import.</p><input id=f type=file accept=".csv"><button onclick=doImp()>Import</button><div id=r></div></div>`}
-async function doImp(){const f=$('#f').files[0];if(!f)return $('#r').innerHTML=msg('Please choose a CSV file first.');$('#r').innerHTML='Importing…';const fd=new FormData();fd.append('file',f);
-  try{const d=await api('/api/admin/import',{method:'POST',body:fd},'admin');$('#r').innerHTML=`<p><b>${d.imported}</b> imported · <b>${d.fixed}</b> fixed · <b>${d.skipped}</b> skipped of ${d.total_rows}</p><div class=wrap><table><tr><th>Row</th><th>Action</th><th>Reason</th></tr>${d.details.map(x=>`<tr><td>${x.row}</td><td>${x.action}</td><td>${esc(x.reason)}</td></tr>`).join('')}</table></div>`}catch(e){$('#r').innerHTML=msg(e.message)}}
-(qs.get('src')||qs.get('ref'))?member():member();
-</script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>ViewBox Panel</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

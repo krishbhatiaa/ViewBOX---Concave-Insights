@@ -1,10 +1,11 @@
 import csv, io, json, logging, os, re
 from datetime import date, datetime
 from typing import Any, List, Literal, Optional
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from . import security as sec
@@ -12,9 +13,11 @@ from .eligibility import evaluate, next_eligible_date
 from .models import *
 
 log = logging.getLogger("viewbox")
-FRONT = os.getenv("FRONTEND_URL", "http://localhost:8000")
+# CORS: FRONTEND_URL may be comma-separated (e.g. Vite dev server + built app)
+_origins = [o.strip() for o in os.getenv("FRONTEND_URL", "http://localhost:8000").split(",") if o.strip()]
+_origins += ["http://localhost:5173", "http://127.0.0.1:5173"]
 app = FastAPI(title="ViewBox Panel System")
-app.add_middleware(CORSMiddleware, allow_origins=[FRONT], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=list(dict.fromkeys(_origins)), allow_methods=["*"], allow_headers=["*"])
 Base.metadata.create_all(engine)
 
 @app.exception_handler(Exception)
@@ -38,7 +41,10 @@ def slugify(s): return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 def norm_phone(p):
     d = re.sub(r"\D", "", str(p or ""))[-10:]
     return d if re.fullmatch(r"[6-9]\d{9}", d) else None
-def link_for(src): return f"{FRONT}/signup?src={sec.sign_link('src', src.unique_slug)}"
+def base_url(request: Request) -> str:
+    """Origin the caller actually used (works behind Vite proxy and in production)."""
+    return str(request.base_url).rstrip("/")
+def link_for(src, request: Request): return f"{base_url(request)}/signup?src={sec.sign_link('src', src.unique_slug)}"
 
 # ---------- schemas ----------
 class PhoneIn(BaseModel): phone: str = Field(pattern=r"^[6-9]\d{9}$")
@@ -47,15 +53,26 @@ class SignupIn(LoginIn):
     name: str = Field(min_length=2, max_length=80); dob: date
     gender: Literal["Male", "Female", "Other"]; city: str = Field(min_length=2, max_length=60)
     income_range: str; interests: List[str] = []
-    src: Optional[str] = None; ref: Optional[str] = None; how_heard_source_id: Optional[int] = None
+    src: Optional[str] = None; ref: Optional[str] = None; first_src: Optional[str] = None
+    how_heard_source_id: Optional[int] = None; referrer_phone: Optional[str] = None
 class AdminLogin(BaseModel): email: str; password: str
 class SourceIn(BaseModel): name: str = Field(min_length=2, max_length=60); type: str = Field(min_length=2, max_length=30)
 class StageIn(BaseModel):
     stage: Literal["Lead", "Fit", "Completed", "Failed"]; failure_reason: Optional[str] = None
+    survey_id: Optional[int] = None; quality_check_passed: bool = True  # used when stage = Completed
 class RuleIn(BaseModel):
-    rule_type: Literal["age", "city", "gender", "income"]; value: str; strict_or_flexible: Literal["strict", "flexible"] = "strict"
+    rule_type: Literal["age", "city", "gender", "income"]; value: str = Field(min_length=1, max_length=200); strict_or_flexible: Literal["strict", "flexible"] = "strict"
+    @field_validator("value")
+    @classmethod
+    def _v(cls, v, info):
+        v = v.strip()
+        if info.data.get("rule_type") == "age":
+            m = re.fullmatch(r"(\d{1,3})\s*-\s*(\d{1,3})", v)
+            if not m or int(m[1]) > int(m[2]): raise ValueError("Age rule must look like 18-35 (minimum first)")
+            return f"{int(m[1])}-{int(m[2])}"
+        return v
 class SurveyIn(BaseModel):
-    title: str; description: str = ""; deadline: Optional[datetime] = None; quota: Optional[int] = None
+    title: str = Field(min_length=3, max_length=120); description: str = ""; deadline: Optional[datetime] = None; quota: Optional[int] = None
     amount: float = 0; rules: List[RuleIn] = []
 class MetaLeadIn(BaseModel):
     lead_id: str = Field(min_length=1); form_id: Optional[str] = None; campaign_id: Optional[str] = None
@@ -87,12 +104,26 @@ def signup(b: SignupIn, db: Session = Depends(db_dep)):
         rid = sec.verify_link("ref", b.ref)
         referrer = db.get(Member, int(rid)) if rid and rid.isdigit() else None
         if not referrer: notes.append("Referral link could not be verified and was ignored.")
+    if not referrer and b.referrer_phone:  # typed referrer: matched by exact phone, never by ambiguous name
+        referrer = db.query(Member).filter_by(phone=norm_phone(b.referrer_phone) or "-").first()
+        if not referrer or referrer.phone == b.phone: referrer = None; notes.append("We couldn't find a member with that referrer number.")
+    first = None; fslug = sec.verify_link("src", b.first_src) if b.first_src else None
+    if fslug: first = db.query(Source).filter_by(unique_slug=fslug).first()
     if not src and referrer: src = db.query(Source).filter_by(type="referral").first()  # ref only -> source=Referral
     if not src and b.how_heard_source_id: src = db.get(Source, b.how_heard_source_id)
     m = Member(phone=b.phone, name=b.name.strip(), dob=b.dob, gender=b.gender, city=b.city.strip().title(), income_range=b.income_range,
-               interests=",".join(b.interests), source_id=src and src.id, first_touch_source_id=src and src.id, referrer_id=referrer and referrer.id)
+               interests=",".join(b.interests), source_id=src and src.id, first_touch_source_id=(first or src) and (first or src).id, referrer_id=referrer and referrer.id)
     db.add(m); db.flush(); db.add(Referral(referrer_id=m.referrer_id, referred_member_id=m.id)); db.commit()
     return {"token": sec.make_token(m.id, "member"), "notes": notes}
+
+@app.get("/api/links/resolve")
+def resolve_links(src: str = "", ref: str = "", db: Session = Depends(db_dep)):
+    """Lets the signup page greet the visitor and decide whether to show 'How did you hear about us?'."""
+    slug = sec.verify_link("src", src) if src else None
+    s = db.query(Source).filter_by(unique_slug=slug).first() if slug else None
+    rid = sec.verify_link("ref", ref) if ref else None
+    r = db.get(Member, int(rid)) if rid and rid.isdigit() else None
+    return {"source": s and s.name, "referrer": r and r.name.split()[0], "needs_fallback": not s and not r}
 
 @app.get("/api/sources/public")
 def public_sources(db: Session = Depends(db_dep)):
@@ -105,10 +136,10 @@ def me(t, db):
     return m
 
 @app.get("/api/me")
-def get_me(t=Depends(member_auth), db: Session = Depends(db_dep)):
+def get_me(request: Request, t=Depends(member_auth), db: Session = Depends(db_dep)):
     m = me(t, db); d = next_eligible_date(db, m)
     return {"id": m.id, "name": m.name, "phone": sec.mask(m.phone), "city": m.city, "interests": [i for i in (m.interests or "").split(",") if i],
-            "next_eligible_date": d and d.isoformat(), "referral_link": f"{FRONT}/signup?ref={sec.sign_link('ref', str(m.id))}"}
+            "next_eligible_date": d and d.isoformat(), "referral_link": f"{base_url(request)}/signup?ref={sec.sign_link('ref', str(m.id))}"}
 
 @app.get("/api/surveys")
 def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
@@ -119,10 +150,18 @@ def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
                     "matches_interests": any(i.lower() in text for i in ints), "result": res, "reason": why})
     return sorted(out, key=lambda x: not x["matches_interests"])
 
+@app.get("/api/me/status")
+def my_status(t=Depends(member_auth), db: Session = Depends(db_dep)):
+    m = me(t, db); r = db.query(Referral).filter_by(referred_member_id=m.id).first()
+    return {"stage": r.stage if r else "Lead", "failure_reason": r.failure_reason if r else None,
+            "completions": [{"survey": db.get(Survey, c.survey_id).title, "completed_at": c.completed_at.date().isoformat(), "quality_passed": c.quality_check_passed} for c in db.query(Completion).filter_by(member_id=m.id)],
+            "payouts": [{"kind": "Referral bonus" if p.referral_id else "Survey payment", "amount": p.amount, "status": p.status} for p in db.query(Payout).filter_by(member_id=m.id)]}
+
 @app.get("/api/me/referrals")
 def my_referrals(t=Depends(member_auth), db: Session = Depends(db_dep)):
     rows = db.query(Referral).filter_by(referrer_id=t["sub"]).all()
-    return [{"friend": r.referred.name, "phone": sec.mask(r.referred.phone), "stage": r.stage, "failure_reason": r.failure_reason, "updated_at": r.updated_at.isoformat()} for r in rows]
+    bonus = {p.referral_id: p for p in db.query(Payout).filter(Payout.member_id == t["sub"], Payout.referral_id != None)}
+    return [{"bonus": {"amount": bonus[r.id].amount, "status": bonus[r.id].status} if r.id in bonus else None, "friend": r.referred.name, "phone": sec.mask(r.referred.phone), "stage": r.stage, "failure_reason": r.failure_reason, "updated_at": r.updated_at.isoformat()} for r in rows]
 
 # ---------- admin ----------
 @app.post("/api/admin/login")
@@ -132,18 +171,20 @@ def admin_login(b: AdminLogin, db: Session = Depends(db_dep)):
     return {"token": sec.make_token(a.email, "admin")}
 
 @app.get("/api/admin/sources")
-def list_sources(_=Depends(admin_auth), db: Session = Depends(db_dep)):
-    return [{"id": s.id, "name": s.name, "type": s.type, "link": link_for(s)} for s in db.query(Source).order_by(Source.name)]
+def list_sources(request: Request, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return [{"id": s.id, "name": s.name, "type": s.type, "link": link_for(s, request)} for s in db.query(Source).order_by(Source.name)]
 
 @app.post("/api/admin/sources", status_code=201)
-def add_source(b: SourceIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+def add_source(b: SourceIn, request: Request, _=Depends(admin_auth), db: Session = Depends(db_dep)):
     if db.query(Source).filter_by(name=b.name).first(): raise HTTPException(409, "A source with this name already exists.")
-    s = Source(name=b.name, type=b.type.lower(), unique_slug=slugify(b.name)); db.add(s); db.commit()
-    return {"id": s.id, "name": s.name, "type": s.type, "link": link_for(s)}
+    base = slugify(b.name) or "source"; slug, n = base, 2
+    while db.query(Source).filter_by(unique_slug=slug).first(): slug, n = f"{base}-{n}", n + 1
+    s = Source(name=b.name, type=slugify(b.type) or "other", unique_slug=slug); db.add(s); db.commit()
+    return {"id": s.id, "name": s.name, "type": s.type, "link": link_for(s, request)}
 
 @app.post("/api/admin/surveys", status_code=201)
 def add_survey(b: SurveyIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
-    s = Survey(**b.model_dump(exclude={"rules"}), rules=[SurveyRule(**r.model_dump()) for r in b.rules]); db.add(s); db.commit()
+    s = Survey(**b.model_dump(exclude={"rules"}), rules=[SurveyRule(**r.model_dump(), operator="between" if r.rule_type == "age" else "in") for r in b.rules]); db.add(s); db.commit()
     return {"id": s.id}
 
 def member_query(db, q, source_id, city, status):
@@ -175,13 +216,46 @@ def export(q: str = "", source_id: Optional[int] = None, city: str = "", status:
     w = csv.DictWriter(buf, fieldnames=["id", "name", "phone", "city", "gender", "source", "referrer", "stage", "created_at"], extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=members.csv"})
 
+BONUS = float(os.getenv("REFERRAL_BONUS", "100"))
+
+@app.get("/api/admin/surveys")
+def admin_surveys(_=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return [{"id": x.id, "title": x.title, "status": x.status, "deadline": x.deadline and x.deadline.date().isoformat(), "quota": x.quota, "amount": x.amount,
+             "completions": db.query(Completion).filter_by(survey_id=x.id).count(),
+             "rules": [{"rule_type": r.rule_type, "value": r.value, "strict_or_flexible": r.strict_or_flexible} for r in x.rules]} for x in db.query(Survey).order_by(Survey.id.desc())]
+
 @app.post("/api/admin/referrals/{rid}/stage")
 def set_stage(rid: int, b: StageIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
     r = db.get(Referral, rid)
     if not r: raise HTTPException(404, "Referral not found.")
-    if b.stage == "Failed" and not b.failure_reason: raise HTTPException(422, "Please give a reason when marking Failed.")
-    r.stage, r.failure_reason, r.updated_at = b.stage, b.failure_reason if b.stage == "Failed" else None, datetime.utcnow(); db.commit()
-    return {"ok": True}
+    if r.stage == "Completed" and b.stage != "Completed": raise HTTPException(409, "This member already completed a survey, so the stage can't be changed.")
+    reason = b.failure_reason
+    if b.stage == "Failed" and not reason: raise HTTPException(422, "Please give a reason when marking Failed.")
+    if b.stage == "Completed":
+        sv = db.get(Survey, b.survey_id) if b.survey_id else None
+        if not sv: raise HTTPException(422, "Please choose which survey was completed.")
+        if db.query(Completion).filter_by(member_id=r.referred_member_id, survey_id=sv.id).first(): raise HTTPException(409, "This completion is already recorded.")
+        db.add(Completion(member_id=r.referred_member_id, survey_id=sv.id, quality_check_passed=b.quality_check_passed))  # starts the 3-month cool-off when quality passed
+        if b.quality_check_passed:
+            db.add(Payout(member_id=r.referred_member_id, survey_id=sv.id, amount=sv.amount))
+            if r.referrer_id and not db.query(Payout).filter_by(referral_id=r.id).first():
+                db.add(Payout(member_id=r.referrer_id, survey_id=sv.id, referral_id=r.id, amount=BONUS))
+        else: b.stage, reason = "Failed", "Did not pass the quality check, so no payment is due."
+    r.stage, r.failure_reason, r.updated_at = b.stage, reason if b.stage == "Failed" else None, datetime.utcnow(); db.commit()
+    return {"ok": True, "stage": r.stage}
+
+@app.get("/api/admin/payouts")
+def payouts(_=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return [{"id": p.id, "member": db.get(Member, p.member_id).name, "kind": "Referral bonus" if p.referral_id else "Survey payment", "amount": p.amount, "status": p.status} for p in db.query(Payout).order_by(Payout.id.desc())]
+
+@app.post("/api/admin/payouts/{pid}/status")
+def payout_status(pid: int, status: Literal["Approved", "Paid"], t=Depends(admin_auth), db: Session = Depends(db_dep)):
+    p = db.get(Payout, pid)
+    if not p: raise HTTPException(404, "Payout not found.")
+    if status == "Paid" and p.status != "Approved": raise HTTPException(409, "Ops must approve a payout before it can be marked Paid.")
+    p.status = status
+    if status == "Approved": p.approved_by, p.approved_at = t["sub"], datetime.utcnow()
+    db.commit(); return {"ok": True}
 
 @app.get("/api/admin/source-stats")
 def source_stats(_=Depends(admin_auth), db: Session = Depends(db_dep)):
