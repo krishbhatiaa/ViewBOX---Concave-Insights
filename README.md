@@ -5,19 +5,31 @@ ViewBox records where every survey panel member comes from (signed source/referr
 
 ## 2. Tech Stack
 - Backend: **FastAPI** (chosen over Flask for built-in Pydantic validation on every endpoint, typed schemas and auto docs at `/docs`), SQLAlchemy 2, Uvicorn
-- Frontend: single-file mobile-first HTML/CSS/JS (no build step; React + Vite + Tailwind port is on the roadmap)
-- DB: SQLite. Libraries: pydantic, python-multipart, stdlib hmac/hashlib/csv
+- Frontend: **React 18 + Vite + Tailwind CSS 4**, mobile-first, react-router. `npm run dev` proxies `/api` to the backend; `npm run build` writes `frontend/dist`, which the backend serves directly with an SPA fallback (deep links like `/admin/members` work without Vite)
+- DB: SQLite. Libraries: pydantic, python-multipart, pytest, stdlib hmac/hashlib/csv
 
 ## 3. Setup and Run (~2 min)
 ```bash
+# terminal 1 — backend
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env            # optional; defaults work locally
 python -m app.seed              # loads demo data
 uvicorn app.main:app --port 8000
+
+# terminal 2 — frontend
+cd frontend
+npm install
+npm run dev                     # http://localhost:5173
 ```
-Open http://localhost:8000 (UI) and http://localhost:8000/docs (API). Run from `backend/`.
+Open http://localhost:5173 (UI) or http://localhost:8000 (serves `frontend/dist` if built, otherwise run the UI through Vite), and http://localhost:8000/docs (API).
+
+Tests (backend API suite, uses its own throwaway DB):
+```bash
+cd backend && python -m pytest
+```
+Production-style run: `cd frontend && npm run build`, then start uvicorn — the backend serves the built app from `frontend/dist` at http://localhost:8000.
 
 ## 4. Demo Logins and Test Data
 - Admin: `admin@concave.test` / `admin123`
@@ -39,16 +51,18 @@ Open http://localhost:8000 (UI) and http://localhost:8000/docs (API). Run from `
 | Admin grid: search-as-you-type, filters, CSV export of current view | Done (CSV only, no Excel) |
 | Source dashboard (sign-ups / Fit / Completed) | Done |
 | Messy CSV import with count + per-row reasons | Done |
+| Import preview before commit (dry-run, `?dry_run=true`) | Done — preview report, then Confirm import |
 | `POST /api/meta/lead` (dedupe, invalid flagged) | Done |
 | Empty / loading / error states | Done (manually checked, no UI tests) |
-| Fraud flags + review queue | Not done (tables exist) |
-| Payout ledger / approval | Partly done (payout rows created on completion; approve -> paid enforced by API; no admin ledger screen) |
-| Import preview before commit | Partly done (report after import) |
-| Admin manual override | Partly done (eligibility honours overrides; no UI/endpoint) |
+| Fraud flags + review queue (dup phone, self-referral, device/IP bursts, referral rings) | Done — detection on signup + on-demand scan; queue at Admin → Fraud queue; flags never deleted (Cleared/Confirmed) |
+| Payout ledger / approval | Done — Payouts screen; Paid blocked until Approved (API-enforced) |
+| Admin manual override | Done — endpoint + “Override…” in the members grid; engine honours it |
 | Admin creates surveys + Strict/Flexible rules (UI) | Done |
 | Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
-| Meta leads admin view | Not done |
+| React + Vite + Tailwind frontend | Done |
+| Automated tests (pytest API suite, 18 tests) | Done — `cd backend && python -m pytest` |
+| Meta leads admin view | Not done (endpoint + storage exist; view not required by the brief) |
 | Tier 3 "wow" feature | Not done |
 
 ## 6. Database Design
@@ -66,10 +80,14 @@ Interactive docs at `/docs`. Key ones:
 | GET | `/api/admin/members?q=&source_id=&city=&status=` | Grid; `/export` returns same view as CSV |
 | POST | `/api/admin/referrals/{id}/stage` | `{stage:"Completed",survey_id:1,quality_check_passed:true}` records completion, starts cool-off, creates payouts; `{stage:"Failed",failure_reason:"…"}` |
 | GET/POST | `/api/admin/surveys` | List / create survey with rules |
-| GET/POST | `/api/admin/payouts`, `/api/admin/payouts/{id}/status?status=Approved\|Paid` | Ops approval before Paid |
+| GET/POST | `/api/admin/payouts`, `POST /api/admin/payouts/{id}/status` | Ledger; body `{status:"Approved"\|"Paid"}` (or `?status=`); Paid blocked until Approved |
 | GET | `/api/me/status` | Member's own stage, completions, earnings |
 | GET | `/api/admin/source-stats` | Per-source funnel |
-| POST | `/api/admin/import` | Multipart CSV → `{total_rows,imported,fixed,skipped,details[]}` |
+| POST | `/api/admin/import` (+ `?dry_run=true`) | Multipart CSV → `{total_rows,imported,fixed,skipped,details[]}`; dry-run validates only and writes nothing |
+| GET | `/api/admin/fraud-flags?status=open\|Cleared\|Confirmed\|all` | Review queue |
+| POST | `/api/admin/fraud-flags/{id}/review` `{status:"Cleared"\|"Confirmed",note?}` | Review a flag — rows are never deleted; clears the member's Flagged state when no open flags remain |
+| POST | `/api/admin/fraud/scan` | Re-check all members for device/IP bursts and referral rings → `{flags_created}` |
+| GET/POST | `/api/admin/overrides` `{member_id,survey_id,reason}`, DELETE `/api/admin/overrides/{id}` | Manual eligibility override (member then sees "Approved by ops after manual review") |
 | POST | `/api/meta/lead` | Meta lead ad |
 
 Meta sample request → response:
@@ -83,12 +101,23 @@ Repeat → `{"status":"duplicate"}`. Invalid phone/name → 422 (raw lead is sto
 ## 8. Assumptions and Decisions
 1. **Source conflict**: Instagram link + referrer → `source`=Instagram, `referrer_id`=member. Bonus goes to the referrer, source analytics to Instagram. A `?ref=` alone sets source to "Referral".
 2. **First vs last touch**: the first signed link a visitor opens is remembered in the browser and sent as `first_src`; the link used at signup is `source_id` (last touch, for conversion). Both stored. Not done: a separate log of every visit.
-3. **Payments**: Razorpay (UPI/cards/bank, sandbox). Ops approves → Orders/Payouts API → capture → webhook updates status → "Paid"; failed/pending handled by webhook retries + polling. Not built.
+3. **Payment Gateway Plan** (not connected — no gateway keys in this environment; the approval gate that must come first *is* built):
+   **Gateway choice: Razorpay.** Reasoning: dominant in India, one integration covers UPI / cards / netbanking for receiving and a **Payouts API** (UPI + IMPS bank transfers) for paying members, full test/sandbox mode, signed webhooks, and docs good enough for a prototype.
+   Steps from ops approval to money reaching the member:
+   1. Ops clicks Approve → `POST /api/admin/payouts/{id}/status {"status":"Approved"}` (built; the API already refuses `Paid` unless the row is `Approved`).
+   2. Backend calls `POST https://api.razorpay.com/v1/payouts` (HTTP Basic: `key_id:key_secret`) with `{account_number, mode:"UPI"|"IMPS", amount: <payout.amount × 100 (paise)>, currency:"INR", purpose:"payout", reference_id:"payout-<id>", notes:{payout_id}}`. `reference_id` = our payout id, so a retry can never double-pay (idempotency).
+   3. Store `razorpay_payout_id` on the payout row; status → `Processing`.
+   4. Razorpay calls our webhook `POST /webhooks/razorpay` with events `payout.processed` / `payout.failed`; we verify the `x-razorpay-signature` header (HMAC-SHA256 of the raw body with `RAZORPAY_WEBHOOK_SECRET`) before trusting it.
+   5. `payout.processed` → mark `Paid`; `payout.failed` → back to `Approved` with the gateway error recorded, ops fixes the member's UPI/bank details and re-approves. Nothing is ever auto-deleted.
+   6. Reconciliation job polls `GET /v1/payouts/{id}` for anything stuck in `Processing` > 24 h (covers missed webhooks), with retries at 5/30/120 min for `pending`. Failed after 3 attempts → surfaced on the Payouts screen for manual handling.
 4. Cool-off = 90 days from last quality-passed completion. Invalid/forged links are ignored (signup still works) and the member is told.
 5. Payout amounts: survey payment = `surveys.amount`; referral bonus = flat `REFERRAL_BONUS` (default 100, env). Cool-off starts only when the quality check passed; a failed quality check marks the stage Failed with a reason and creates no payout.
 6. Pipeline stage is per signup row; "Failed" requires a reason.
 **Security posture** (not "unhackable"): SQLAlchemy parameterised queries; Pydantic validation; HMAC-SHA256 signed links; OTP rate limit; signed expiring tokens with PBKDF2 admin passwords; admin routes protected; CORS limited to `FRONTEND_URL`; no secrets in repo; phones masked for members. Gaps: the Meta endpoint has no signature check, tokens are in localStorage, rate limit is per-phone only. Production: Postgres, Redis for sessions/OTP, HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS.
 
-
-
+## 9. Known Issues and Next Steps
+- Not built: Meta leads admin view, Excel export, Tier 3 "wow" feature, video walkthrough, UI tests (the pytest API suite covers the backend).
+- Single-file backend `main.py` should be split into routers/services.
+- Fraud detection uses signup-time `X-Forwarded-For` / `X-Device-Id`; behind a real proxy make sure `X-Forwarded-For` is set by the proxy (not the client) or bursts will group wrongly. Loopback/non-IP addresses are ignored.
+- Roadmap (Tier 4): ML analytics with forecasting, Postgres/Redis scaling, production payment gateway flow (plan in section 8.3), LLM rule suggestions (admin-approved, never auto-committed), audit logs, RBAC, security headers.
 

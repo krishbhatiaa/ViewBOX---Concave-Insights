@@ -4,6 +4,7 @@ import { ToastProvider } from "./components/Toast.jsx";
 import { Button, Card, PageHeader } from "./components/ui.jsx";
 import AdminLayout from "./pages/admin/AdminLayout.jsx";
 import AdminLoginPage from "./pages/admin/AdminLoginPage.jsx";
+import FraudPage from "./pages/admin/FraudPage.jsx";
 import GridPage from "./pages/admin/GridPage.jsx";
 import ImportPage from "./pages/admin/ImportPage.jsx";
 import PayoutsPage from "./pages/admin/PayoutsPage.jsx";
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="/admin/stats" element={<StatsPage />} />
           <Route path="/admin/import" element={<ImportPage />} />
           <Route path="/admin/payouts" element={<PayoutsPage />} />
+          <Route path="/admin/fraud" element={<FraudPage />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

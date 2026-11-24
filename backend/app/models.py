@@ -22,6 +22,7 @@ class Member(Base):
     income_range = Column(String); interests = Column(String, default="")
     source_id = FK("sources.id"); referrer_id = FK("members.id"); first_touch_source_id = FK("sources.id")
     created_at = Column(DateTime, default=now); is_flagged = Column(Boolean, default=False)
+    ip = Column(String); device_id = Column(String)
     source = relationship("Source", foreign_keys=[source_id])
     referrer = relationship("Member", remote_side=[id])
 
@@ -78,6 +79,7 @@ class FraudFlag(Base):
     __tablename__ = "fraud_flags"
     id = Column(Integer, primary_key=True); member_id = FK("members.id"); flag_type = Column(String)
     details = Column(Text); status = Column(String, default="open"); created_at = Column(DateTime, default=now)
+    reviewed_by = Column(String); reviewed_at = Column(DateTime)
 
 class AdminUser(Base):
     __tablename__ = "admin_users"

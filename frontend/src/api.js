@@ -29,8 +29,17 @@ function parseDetail(detail) {
   return "Please check the details you entered and try again.";
 }
 
+function deviceId() {
+  let id = localStorage.getItem("vb_device");
+  if (!id) {
+    id = (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem("vb_device", id);
+  }
+  return id;
+}
+
 export async function api(path, { method = "GET", body, role, raw = false } = {}) {
-  const headers = {};
+  const headers = { "X-Device-Id": deviceId() };
   if (body && !(body instanceof FormData)) headers["Content-Type"] = "application/json";
   const token = role ? tokens.get(role === "member") : null;
   if (token) headers.Authorization = `Bearer ${token}`;

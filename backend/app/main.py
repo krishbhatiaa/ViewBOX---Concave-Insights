@@ -1,7 +1,7 @@
 import csv, io, json, logging, os, re
 from datetime import date, datetime
 from typing import Any, List, Literal, Optional
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from . import security as sec
+from . import fraud
 from .eligibility import evaluate, next_eligible_date
 from .models import *
 
@@ -19,6 +20,22 @@ _origins += ["http://localhost:5173", "http://127.0.0.1:5173"]
 app = FastAPI(title="ViewBox Panel System")
 app.add_middleware(CORSMiddleware, allow_origins=list(dict.fromkeys(_origins)), allow_methods=["*"], allow_headers=["*"])
 Base.metadata.create_all(engine)
+
+def _ensure_columns():
+    """SQLite has no ALTER COLUMN: add columns introduced after a table was created."""
+    from sqlalchemy import inspect, text
+    want = {"members": {"ip": "VARCHAR", "device_id": "VARCHAR"},
+            "fraud_flags": {"reviewed_by": "VARCHAR", "reviewed_at": "DATETIME"}}
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, cols in want.items():
+            if table not in insp.get_table_names():
+                continue
+            existing = {c["name"] for c in insp.get_columns(table)}
+            for name, typ in cols.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {typ}"))
+_ensure_columns()
 
 @app.exception_handler(Exception)
 async def friendly(_, exc):
@@ -77,6 +94,10 @@ class SurveyIn(BaseModel):
 class MetaLeadIn(BaseModel):
     lead_id: str = Field(min_length=1); form_id: Optional[str] = None; campaign_id: Optional[str] = None
     ad_id: Optional[str] = None; time: Optional[str] = None; fields: Any = None
+class FlagReviewIn(BaseModel):
+    status: Literal["Cleared", "Confirmed"]; note: Optional[str] = Field(default=None, max_length=300)
+class OverrideIn(BaseModel):
+    member_id: int; survey_id: int; reason: str = Field(min_length=3, max_length=300)
 
 # ---------- member auth ----------
 @app.post("/api/otp/request")
@@ -92,9 +113,14 @@ def login(b: LoginIn, db: Session = Depends(db_dep)):
     return {"token": sec.make_token(m.id, "member")}
 
 @app.post("/api/signup")
-def signup(b: SignupIn, db: Session = Depends(db_dep)):
-    if db.query(Member).filter_by(phone=b.phone).first(): raise HTTPException(409, "This number is already registered. Please log in.")
-    sec.check_otp(b.phone, b.otp)
+def signup(b: SignupIn, request: Request, x_device_id: str = Header(None), db: Session = Depends(db_dep)):
+    sec.check_otp(b.phone, b.otp)  # verify first so unauthenticated callers can't spam flags
+    existing = db.query(Member).filter_by(phone=b.phone).first()
+    if existing:
+        fraud.add_flag(db, existing.id, "duplicate_signup",
+                       f"Another sign-up attempt with this phone at {datetime.utcnow():%Y-%m-%d %H:%M} UTC.")
+        db.commit()
+        raise HTTPException(409, "This number is already registered. Please log in.")
     src = referrer = None; notes = []
     if b.src:
         slug = sec.verify_link("src", b.src)
@@ -111,9 +137,14 @@ def signup(b: SignupIn, db: Session = Depends(db_dep)):
     if fslug: first = db.query(Source).filter_by(unique_slug=fslug).first()
     if not src and referrer: src = db.query(Source).filter_by(type="referral").first()  # ref only -> source=Referral
     if not src and b.how_heard_source_id: src = db.get(Source, b.how_heard_source_id)
+    ip = ((request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+          or (request.client.host if request.client else None))
     m = Member(phone=b.phone, name=b.name.strip(), dob=b.dob, gender=b.gender, city=b.city.strip().title(), income_range=b.income_range,
-               interests=",".join(b.interests), source_id=src and src.id, first_touch_source_id=(first or src) and (first or src).id, referrer_id=referrer and referrer.id)
-    db.add(m); db.flush(); db.add(Referral(referrer_id=m.referrer_id, referred_member_id=m.id)); db.commit()
+               interests=",".join(b.interests), source_id=src and src.id, first_touch_source_id=(first or src) and (first or src).id,
+               referrer_id=referrer and referrer.id, ip=ip or None, device_id=x_device_id)
+    db.add(m); db.flush(); db.add(Referral(referrer_id=m.referrer_id, referred_member_id=m.id))
+    fraud.on_signup(db, m, referrer, m.ip, m.device_id)
+    db.commit()
     return {"token": sec.make_token(m.id, "member"), "notes": notes}
 
 @app.get("/api/links/resolve")
@@ -244,17 +275,25 @@ def set_stage(rid: int, b: StageIn, _=Depends(admin_auth), db: Session = Depends
     r.stage, r.failure_reason, r.updated_at = b.stage, reason if b.stage == "Failed" else None, datetime.utcnow(); db.commit()
     return {"ok": True, "stage": r.stage}
 
+class PayoutStatusIn(BaseModel):
+    status: Literal["Approved", "Paid"]
+
 @app.get("/api/admin/payouts")
 def payouts(_=Depends(admin_auth), db: Session = Depends(db_dep)):
     return [{"id": p.id, "member": db.get(Member, p.member_id).name, "kind": "Referral bonus" if p.referral_id else "Survey payment", "amount": p.amount, "status": p.status} for p in db.query(Payout).order_by(Payout.id.desc())]
 
 @app.post("/api/admin/payouts/{pid}/status")
-def payout_status(pid: int, status: Literal["Approved", "Paid"], t=Depends(admin_auth), db: Session = Depends(db_dep)):
+def payout_status(pid: int, b: Optional[PayoutStatusIn] = Body(None),
+                  status: Optional[Literal["Approved", "Paid"]] = Query(None),
+                  t=Depends(admin_auth), db: Session = Depends(db_dep)):
+    """Accepts the status as JSON body (frontend) or query string (README examples)."""
+    val = (b and b.status) or status
+    if not val: raise HTTPException(422, "Please give a status of Approved or Paid.")
     p = db.get(Payout, pid)
     if not p: raise HTTPException(404, "Payout not found.")
-    if status == "Paid" and p.status != "Approved": raise HTTPException(409, "Ops must approve a payout before it can be marked Paid.")
-    p.status = status
-    if status == "Approved": p.approved_by, p.approved_at = t["sub"], datetime.utcnow()
+    if val == "Paid" and p.status != "Approved": raise HTTPException(409, "Ops must approve a payout before it can be marked Paid.")
+    p.status = val
+    if val == "Approved": p.approved_by, p.approved_at = t["sub"], datetime.utcnow()
     db.commit(); return {"ok": True}
 
 @app.get("/api/admin/source-stats")
@@ -265,6 +304,65 @@ def source_stats(_=Depends(admin_auth), db: Session = Depends(db_dep)):
         out.append({"source": s.name, "type": s.type, "signups": len(st), "fit": sum(x in ("Fit", "Completed") for x in st), "completed": st.count("Completed")})
     return sorted(out, key=lambda x: -x["signups"])
 
+# ---------- fraud review queue ----------
+@app.get("/api/admin/fraud-flags")
+def fraud_flags(status: str = "open", _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    q = db.query(FraudFlag)
+    if status != "all": q = q.filter_by(status=status)
+    out = []
+    for f in q.order_by(FraudFlag.id.desc()):
+        m = db.get(Member, f.member_id)
+        out.append({"id": f.id, "member_id": f.member_id, "name": m.name if m else "(deleted member)",
+                    "phone": m.phone if m else "", "flag_type": f.flag_type, "details": f.details,
+                    "status": f.status, "created_at": f.created_at.date().isoformat(),
+                    "reviewed_by": f.reviewed_by})
+    return out
+
+@app.post("/api/admin/fraud-flags/{fid}/review")
+def review_flag(fid: int, b: FlagReviewIn, t=Depends(admin_auth), db: Session = Depends(db_dep)):
+    f = db.get(FraudFlag, fid)
+    if not f: raise HTTPException(404, "Flag not found.")
+    f.status = b.status  # Cleared or Confirmed — rows are never deleted
+    if b.note: f.details = f"{f.details} · Review note: {b.note}"
+    f.reviewed_by, f.reviewed_at = t["sub"], datetime.utcnow()
+    db.flush()  # autoflush is off; flush so the open-count below sees the new status
+    open_left = db.query(FraudFlag).filter_by(member_id=f.member_id, status="open").count()
+    m = db.get(Member, f.member_id)
+    if m: m.is_flagged = open_left > 0
+    db.commit()
+    return {"ok": True, "status": f.status, "member_flagged": bool(m and m.is_flagged)}
+
+@app.post("/api/admin/fraud/scan")
+def fraud_scan(_=Depends(admin_auth), db: Session = Depends(db_dep)):
+    """Re-check everyone for device/IP bursts and referral rings."""
+    return {"flags_created": fraud.scan(db)}
+
+# ---------- manual eligibility override ----------
+@app.get("/api/admin/overrides")
+def list_overrides(member_id: Optional[int] = None, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    q = db.query(AdminOverride)
+    if member_id: q = q.filter_by(member_id=member_id)
+    return [{"id": o.id, "member_id": o.member_id, "member": db.get(Member, o.member_id).name,
+             "survey_id": o.survey_id, "survey": db.get(Survey, o.survey_id).title,
+             "reason": o.reason, "created_at": o.created_at.date().isoformat()} for o in q.order_by(AdminOverride.id.desc())]
+
+@app.post("/api/admin/overrides", status_code=201)
+def create_override(b: OverrideIn, t=Depends(admin_auth), db: Session = Depends(db_dep)):
+    if not db.get(Member, b.member_id): raise HTTPException(404, "Member not found.")
+    if not db.get(Survey, b.survey_id): raise HTTPException(404, "Survey not found.")
+    if db.query(AdminOverride).filter_by(member_id=b.member_id, survey_id=b.survey_id).first():
+        raise HTTPException(409, "An override already exists for this member and survey.")
+    db.add(AdminOverride(member_id=b.member_id, survey_id=b.survey_id, overridden_by=t["sub"], reason=b.reason.strip()))
+    db.commit()
+    return {"ok": True}
+
+@app.delete("/api/admin/overrides/{oid}")
+def delete_override(oid: int, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    o = db.get(AdminOverride, oid)
+    if not o: raise HTTPException(404, "Override not found.")
+    db.delete(o); db.commit()
+    return {"ok": True}
+
 # ---------- messy CSV import ----------
 def parse_dob(v):
     for f in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%m/%d/%Y", "%d %b %Y"):
@@ -274,34 +372,53 @@ def parse_dob(v):
         except ValueError: pass
     return None
 
+def _plan_import_row(raw, srcs, seen):
+    """Validate + normalise one CSV row without touching the database.
+
+    Returns (plan, notes). Raises ValueError with a human reason to skip the row.
+    """
+    r = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+    note = []
+    phone = norm_phone(r.get("phone") or r.get("mobile"))
+    if not phone: raise ValueError("invalid or missing phone")
+    if phone in seen: raise ValueError("duplicate phone")
+    name = " ".join((r.get("name") or "").split()).title()
+    if len(name) < 2: raise ValueError("missing name")
+    dob = parse_dob(r.get("dob") or "") if r.get("dob") else None
+    if r.get("dob") and not dob: note.append("unreadable DOB cleared")
+    g = {"m": "Male", "male": "Male", "f": "Female", "female": "Female"}.get((r.get("gender") or "").lower(), "Other" if r.get("gender") else None)
+    if r.get("phone") != phone: note.append("phone normalised")
+    src = srcs.get((r.get("source") or "").lower())
+    plan = {"phone": phone, "name": name, "dob": dob, "gender": g,
+            "city": (r.get("city") or "").title() or None,
+            "income_range": r.get("income") or r.get("income_range") or None,
+            "interests": r.get("interests", "").replace(";", ","), "source": src}
+    return plan, note
+
 @app.post("/api/admin/import")
-async def import_csv(file: UploadFile = File(...), _=Depends(admin_auth), db: Session = Depends(db_dep)):
+async def import_csv(file: UploadFile = File(...), dry_run: bool = Query(False), _=Depends(admin_auth), db: Session = Depends(db_dep)):
     try: text = (await file.read()).decode("utf-8-sig", errors="replace")
     except Exception: raise HTTPException(400, "Could not read this file.")
     rows = list(csv.DictReader(io.StringIO(text)))
     if not rows: raise HTTPException(422, "The file has no data rows.")
     srcs = {s.name.lower(): s for s in db.query(Source)}; seen = {m.phone for m in db.query(Member.phone)}
-    added, fixed, skipped, errs = 0, 0, 0, []
+    added, fixed, skipped, errs, plans = 0, 0, 0, [], []
     for i, raw in enumerate(rows, start=2):
         try:
-            r = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
-            note = []; phone = norm_phone(r.get("phone") or r.get("mobile"))
-            if not phone: raise ValueError("invalid or missing phone")
-            if phone in seen: raise ValueError("duplicate phone")
-            name = " ".join((r.get("name") or "").split()).title()
-            if len(name) < 2: raise ValueError("missing name")
-            dob = parse_dob(r.get("dob") or "") if r.get("dob") else None
-            if r.get("dob") and not dob: note.append("unreadable DOB cleared")
-            g = {"m": "Male", "male": "Male", "f": "Female", "female": "Female"}.get((r.get("gender") or "").lower(), "Other" if r.get("gender") else None)
-            if r.get("phone") != phone: note.append("phone normalised")
-            src = srcs.get((r.get("source") or "").lower())
-            m = Member(phone=phone, name=name, dob=dob, gender=g, city=(r.get("city") or "").title() or None, income_range=r.get("income") or r.get("income_range") or None,
-                       interests=r.get("interests", "").replace(";", ","), source_id=src and src.id, first_touch_source_id=src and src.id)
-            with db.begin_nested(): db.add(m); db.flush(); db.add(Referral(referred_member_id=m.id))
-            seen.add(phone); added += 1
+            plan, note = _plan_import_row(raw, srcs, seen)
+            seen.add(plan["phone"]); plans.append((i, plan, note)); added += 1
             if note: fixed += 1; errs.append({"row": i, "action": "fixed", "reason": ", ".join(note)})
         except Exception as e:
             skipped += 1; errs.append({"row": i, "action": "skipped", "reason": str(e)[:120]})
+    if dry_run:
+        # Nothing has been written — validation only.
+        return {"preview": True, "total_rows": len(rows), "imported": added, "fixed": fixed, "skipped": skipped, "details": errs}
+    for i, plan, note in plans:
+        m = Member(phone=plan["phone"], name=plan["name"], dob=plan["dob"], gender=plan["gender"],
+                   city=plan["city"], income_range=plan["income_range"], interests=plan["interests"],
+                   source_id=plan["source"] and plan["source"].id,
+                   first_touch_source_id=plan["source"] and plan["source"].id)
+        db.add(m); db.flush(); db.add(Referral(referred_member_id=m.id))
     db.add(ImportLog(filename=file.filename, total_rows=len(rows), fixed_count=fixed, skipped_count=skipped, error_details_json=json.dumps(errs))); db.commit()
     return {"total_rows": len(rows), "imported": added, "fixed": fixed, "skipped": skipped, "details": errs}
 
@@ -326,7 +443,16 @@ def meta_lead(b: MetaLeadIn, db: Session = Depends(db_dep)):
     lead.member_id = m.id; db.add(lead); db.commit()
     return {"status": status, "member_id": m.id, "source": "Meta Ads", "campaign_id": b.campaign_id}
 
-# ---------- frontend ----------
-@app.get("/")
-@app.get("/signup")
-def index(): return FileResponse(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "index.html"))
+# ---------- frontend (SPA: every non-API GET serves the built app, so deep links work) ----------
+_DIST = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist"))
+_INDEX = os.path.join(_DIST, "index.html")
+if not os.path.isfile(_INDEX):  # dev fallback: the Vite shell (served behind `npm run dev`)
+    _INDEX = os.path.join(_DIST, "..", "index.html")
+
+@app.get("/{full_path:path}")
+def spa(full_path: str):
+    if full_path.startswith("api/"): raise HTTPException(404, "Not found.")
+    candidate = os.path.normpath(os.path.join(_DIST, full_path))
+    if (candidate == _DIST or candidate.startswith(_DIST + os.sep)) and os.path.isfile(candidate):  # hashed assets, favicon, etc.
+        return FileResponse(candidate)
+    return FileResponse(_INDEX)

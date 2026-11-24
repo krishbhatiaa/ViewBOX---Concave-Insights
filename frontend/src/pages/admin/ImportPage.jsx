@@ -19,6 +19,7 @@ export default function ImportPage() {
   const toast = useToast();
   const fileRef = useRef(null);
   const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [report, setReport] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,26 +27,41 @@ export default function ImportPage() {
   function pick(e) {
     const f = e.target.files?.[0] || null;
     setFile(f);
+    setPreview(null);
     setReport(null);
     setError("");
   }
 
-  async function run() {
+  function reset() {
+    if (fileRef.current) fileRef.current.value = "";
+    setFile(null);
+    setPreview(null);
+    setReport(null);
+    setError("");
+  }
+
+  async function run(dryRun) {
     if (!file) {
       setError("Please choose a CSV file first.");
       return;
     }
     setLoading(true);
     setError("");
-    setReport(null);
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const d = await api("/api/admin/import", { method: "POST", body: fd, role: "admin" });
-      setReport(d);
-      toast(`Import finished: ${d.imported} imported, ${d.skipped} skipped`);
-      if (fileRef.current) fileRef.current.value = "";
-      setFile(null);
+      const url = dryRun ? "/api/admin/import?dry_run=true" : "/api/admin/import";
+      const d = await api(url, { method: "POST", body: fd, role: "admin" });
+      if (dryRun) {
+        setPreview(d);
+        toast(`Preview ready: ${d.imported} would import, ${d.skipped} would be skipped`);
+      } else {
+        setPreview(null);
+        setReport(d);
+        toast(`Import finished: ${d.imported} imported, ${d.skipped} skipped`);
+        if (fileRef.current) fileRef.current.value = "";
+        setFile(null);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -57,7 +73,7 @@ export default function ImportPage() {
     <div className="space-y-5">
       <PageHeader
         title="Import respondents"
-        description="Upload a messy CSV — bad rows are fixed or skipped with a reason; the import never crashes."
+        description="Preview a messy CSV first — nothing is saved until you confirm. Bad rows are fixed or skipped with a reason; the import never crashes."
       />
 
       <Card>
@@ -75,13 +91,24 @@ export default function ImportPage() {
               className="!py-2.5 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-950 dark:file:text-indigo-300"
             />
           </div>
-          <Button onClick={run} loading={loading} disabled={!file}>
-            {report ? "Import again" : "Import"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => run(true)} loading={loading} disabled={!file}>
+              {preview ? "Re-preview" : "Preview import"}
+            </Button>
+            <Button onClick={() => run(false)} loading={loading} disabled={!file || !preview}>
+              Confirm import
+            </Button>
+          </div>
         </div>
         {file && !loading && (
           <p className="mt-2 text-sm text-slate-500">
             Selected: <b>{file.name}</b> ({(file.size / 1024).toFixed(1)} KB)
+          </p>
+        )}
+        {preview && (
+          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+            Preview only — nothing has been saved yet. Check the report below, then press{" "}
+            <b>Confirm import</b>.
           </p>
         )}
         {error && (
@@ -106,22 +133,22 @@ export default function ImportPage() {
         </Card>
       )}
 
-      {report && (
+      {(preview || report) && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Total rows" value={report.total_rows} tone="slate" />
-            <StatCard label="Imported" value={report.imported} tone="emerald" />
-            <StatCard label="Fixed" value={report.fixed} tone="amber" />
-            <StatCard label="Skipped" value={report.skipped} tone="rose" />
+            <StatCard label="Total rows" value={(preview || report).total_rows} tone="slate" />
+            <StatCard label={preview ? "Would import" : "Imported"} value={(preview || report).imported} tone="emerald" />
+            <StatCard label={preview ? "Would fix" : "Fixed"} value={(preview || report).fixed} tone="amber" />
+            <StatCard label={preview ? "Would skip" : "Skipped"} value={(preview || report).skipped} tone="rose" />
           </div>
 
           <Card className="!p-0">
             <div className="flex items-center justify-between px-4 pt-4 sm:px-5">
-              <h2 className="text-base font-semibold">Per-row report</h2>
-              {report.details.length === 0 && <span className="text-sm text-slate-500">No issues found</span>}
+              <h2 className="text-base font-semibold">{preview ? "Per-row report (preview)" : "Per-row report"}</h2>
+              {(preview || report).details.length === 0 && <span className="text-sm text-slate-500">No issues found</span>}
             </div>
             <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
-              {report.details.length ? (
+              {(preview || report).details.length ? (
                 <Table>
                   <thead>
                     <tr>
@@ -131,7 +158,7 @@ export default function ImportPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {report.details.map((d, i) => (
+                    {(preview || report).details.map((d, i) => (
                       <tr key={i}>
                         <Td className="tabular-nums">{d.row}</Td>
                         <Td>
@@ -143,7 +170,10 @@ export default function ImportPage() {
                   </tbody>
                 </Table>
               ) : (
-                <EmptyState title="Every row imported cleanly" description="No fixes or skips were needed." />
+                <EmptyState
+                  title={preview ? "Every row would import cleanly" : "Every row imported cleanly"}
+                  description="No fixes or skips were needed."
+                />
               )}
             </div>
           </Card>

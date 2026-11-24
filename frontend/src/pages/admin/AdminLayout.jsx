@@ -9,6 +9,7 @@ const tabs = [
   { to: "/admin/stats", label: "Source stats" },
   { to: "/admin/import", label: "Import CSV" },
   { to: "/admin/payouts", label: "Payouts" },
+  { to: "/admin/fraud", label: "Fraud queue" },
 ];
 
 const linkCls = ({ isActive }) =>

@@ -163,6 +163,77 @@ export default function GridPage() {
 
   const filtersActive = dq || sourceId || dCity || status;
 
+  // manual eligibility override state
+  const [ovDialog, setOvDialog] = useState(null); // {row}
+  const [ovExisting, setOvExisting] = useState(null);
+  const [ovSurveyId, setOvSurveyId] = useState("");
+  const [ovReason, setOvReason] = useState("");
+  const [ovError, setOvError] = useState("");
+  const [ovSaving, setOvSaving] = useState(false);
+
+  async function openOverride(row) {
+    setOvError("");
+    setOvReason("");
+    try {
+      const [sv, ovs] = await Promise.all([
+        api("/api/admin/surveys", { role: "admin" }),
+        api(`/api/admin/overrides?member_id=${row.id}`, { role: "admin" }),
+      ]);
+      if (!sv.length && !ovs.length) {
+        toast("Create a survey first (Surveys tab).", "error");
+        return;
+      }
+      setSurveys(sv);
+      setOvSurveyId(sv.length ? String(sv[0].id) : "");
+      setOvExisting(ovs[0] || null);
+      setOvDialog({ row });
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  }
+
+  async function saveOverride() {
+    setOvError("");
+    if (!ovSurveyId) {
+      setOvError("Please choose which survey to override.");
+      return;
+    }
+    if (ovReason.trim().length < 3) {
+      setOvError("Please give a short reason — it is stored with the override.");
+      return;
+    }
+    setOvSaving(true);
+    try {
+      await api("/api/admin/overrides", {
+        method: "POST",
+        body: { member_id: ovDialog.row.id, survey_id: Number(ovSurveyId), reason: ovReason.trim() },
+        role: "admin",
+      });
+      toast(`${ovDialog.row.name} will be Approved for that survey`);
+      setOvDialog(null);
+      load();
+    } catch (err) {
+      setOvError(err.message);
+    } finally {
+      setOvSaving(false);
+    }
+  }
+
+  async function removeOverride() {
+    setOvError("");
+    setOvSaving(true);
+    try {
+      await api(`/api/admin/overrides/${ovExisting.id}`, { method: "DELETE", role: "admin" });
+      toast("Override removed — normal rules apply again");
+      setOvDialog(null);
+      load();
+    } catch (err) {
+      setOvError(err.message);
+    } finally {
+      setOvSaving(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -292,6 +363,9 @@ export default function GridPage() {
                             )}
                           </>
                         )}
+                        <Button variant="ghost" className="!min-h-9 !px-2 !text-xs" onClick={() => openOverride(m)}>
+                          Override…
+                        </Button>
                         {!m.referral_id && <span className="text-xs text-slate-400">No referral row</span>}
                       </div>
                     </Td>
@@ -373,6 +447,66 @@ export default function GridPage() {
             Cancel
           </Button>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!ovDialog}
+        onClose={() => setOvDialog(null)}
+        title={`Manual override — ${ovDialog?.row?.name || ""}`}
+      >
+        {ovExisting ? (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              An override already exists for <b>{ovExisting.survey}</b>:
+            </p>
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">{ovExisting.reason}</p>
+            <p className="text-xs text-slate-500">
+              The member sees “Approved by the ops team after manual review” instead of the normal rules.
+            </p>
+            {ovError && <InlineError message={ovError} />}
+            <div className="flex gap-2">
+              <Button variant="danger" onClick={removeOverride} loading={ovSaving} className="flex-1">
+                Remove override
+              </Button>
+              <Button variant="secondary" onClick={() => setOvDialog(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Approve this member for a survey regardless of the rules. The normal engine is skipped and the member
+              sees that ops approved them after manual review.
+            </p>
+            <Field label="Which survey?" id="ov-survey" required>
+              <Select id="ov-survey" value={ovSurveyId} onChange={(e) => setOvSurveyId(e.target.value)}>
+                {surveys.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Reason" id="ov-reason" required hint="Stored with the override for audit.">
+              <Textarea
+                id="ov-reason"
+                value={ovReason}
+                onChange={(e) => setOvReason(e.target.value)}
+                placeholder="e.g. Over quota but agreed with client"
+              />
+            </Field>
+            {ovError && <InlineError message={ovError} />}
+            <div className="flex gap-2">
+              <Button onClick={saveOverride} loading={ovSaving} className="flex-1">
+                Create override
+              </Button>
+              <Button variant="secondary" onClick={() => setOvDialog(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
