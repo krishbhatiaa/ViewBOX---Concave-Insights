@@ -593,3 +593,51 @@ def test_spa_deep_links_and_api_404(client):
     r = client.get("/home")
     assert r.status_code == 200 and '<div id="root">' in r.text
     assert client.get("/api/does-not-exist").status_code == 404
+
+
+# ---------- Tier 3: rule suggestions (never auto-save) ----------
+
+def test_suggest_rules_offline_heuristic(client, admin):
+    """No LLM_API_KEY in tests -> deterministic keyword fallback, valid RuleIn shape, nothing saved."""
+    r = client.post("/api/admin/suggest-rules",
+                    json={"title": "Women shoppers 25-35 in Mumbai and Pune",
+                          "description": "grocery habits"}, headers=admin)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["source"] == "heuristic" and d["note"]
+    assert d["rules"], "expected at least an age or city rule from that title"
+    types = {x["rule_type"] for x in d["rules"]}
+    assert types <= {"age", "city", "gender", "income"}
+    for x in d["rules"]:
+        assert x["strict_or_flexible"] in ("strict", "flexible")
+        if x["rule_type"] == "age":
+            lo, hi = x["value"].split("-")
+            assert int(lo) <= int(hi)
+    # suggestion must not have created a survey
+    surveys = client.get("/api/admin/surveys", headers=admin).json()
+    assert all(s["title"] != "Women shoppers 25-35 in Mumbai and Pune" for s in surveys)
+
+
+def test_suggest_rules_rejects_bad_input(client, admin):
+    assert client.post("/api/admin/suggest-rules", json={"title": "ab"}, headers=admin).status_code == 422
+    assert client.post("/api/admin/suggest-rules", json={"title": "Valid title here"}).status_code == 401
+
+
+def test_suggest_rules_llm_shape_is_filtered(client, admin, monkeypatch):
+    """When the LLM replies with junk mixed in, invalid rules are dropped, not passed through."""
+    from app.services import rule_suggest as rs
+
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setattr(rs, "httpx", type("Fake", (), {
+        "post": staticmethod(lambda *a, **k: type("R", (), {
+            "raise_for_status": lambda self: None,
+            "json": lambda self: {"choices": [{"message": {"content":
+                '[{"rule_type":"age","value":"25-40","strict_or_flexible":"strict"},'
+                ' {"rule_type":"age","value":"not-a-range"},'
+                ' {"rule_type":"nonsense","value":"x"},'
+                ' {"rule_type":"city","value":"Mumbai","strict_or_flexible":"flexible"}]'}}]},
+        })())
+    }))
+    d = rs.suggest_rules("Mumbai mothers", "")
+    assert d["source"] == "llm"
+    assert [(x["rule_type"], x["value"]) for x in d["rules"]] == [("age", "25-40"), ("city", "Mumbai")]

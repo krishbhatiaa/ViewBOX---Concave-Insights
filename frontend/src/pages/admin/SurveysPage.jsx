@@ -70,6 +70,8 @@ export default function SurveysPage() {
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestNote, setSuggestNote] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,6 +90,34 @@ export default function SurveysPage() {
   }, [load]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  async function suggest() {
+    setFormError("");
+    setSuggestNote("");
+    if (form.title.trim().length < 3) {
+      setFieldErrors((fe) => ({ ...fe, title: "Write a title first — suggestions come from the title and description." }));
+      return;
+    }
+    setSuggesting(true);
+    try {
+      const r = await api("/api/admin/suggest-rules", {
+        method: "POST",
+        body: { title: form.title.trim(), description: form.description.trim() },
+        role: "admin",
+      });
+      setSuggestNote(r.note);
+      if (r.rules.length) {
+        setRules(r.rules.map((x) => ({ ...x, key: ++ruleKey })));
+        toast(`Added ${r.rules.length} suggested rule${r.rules.length > 1 ? "s" : ""} — review before saving`);
+      } else {
+        toast("No rules could be suggested — add them manually", "error");
+      }
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -116,6 +146,7 @@ export default function SurveysPage() {
       toast(`Survey "${body.title}" created`);
       setForm({ title: "", description: "", deadline: "", quota: "", amount: "0" });
       setRules([{ key: ++ruleKey, rule_type: "age", value: "", strict_or_flexible: "strict" }]);
+      setSuggestNote("");
       load();
     } catch (err) {
       setFormError(err.message);
@@ -151,7 +182,17 @@ export default function SurveysPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 text-sm font-semibold">Eligibility rules</h3>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Eligibility rules</h3>
+              <Button variant="secondary" onClick={suggest} loading={suggesting} disabled={suggesting}>
+                Suggest rules
+              </Button>
+            </div>
+            {suggestNote && (
+              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                {suggestNote} Nothing has been saved yet — press <b>Create survey</b> when you are happy with them.
+              </p>
+            )}
             <div className="space-y-2">
               {rules.map((r, i) => (
                 <RuleRow

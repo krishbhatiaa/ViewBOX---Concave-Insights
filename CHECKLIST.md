@@ -63,8 +63,8 @@ For EVERY screen confirm empty, loading and error states:
 5. [ ] Meta leads admin view + per-campaign breakdown
 
 ## 6. Tier 3 - pick exactly ONE
-- [ ] (a) ML completion-likelihood badge  or (b) LLM rule suggestion with admin edit + approve (never auto-save)  or (c) Razorpay sandbox payout
-- Suggested: (b), it fits the "deterministic and auditable" rule best
+- [x] (a) ML completion-likelihood badge  or (b) LLM rule suggestion with admin edit + approve (never auto-save)  or (c) Razorpay sandbox payout
+- Chosen: (b) — `POST /api/admin/suggest-rules` (LLM via `LLM_API_KEY`, offline keyword fallback), suggestions land in the create-survey form for admin edit; only `POST /api/admin/surveys` saves
 
 ## 7. README - exact 9 sections
 - [x] 1 Overview (3-4 lines)  - [x] 2 Tech stack  - [ ] 3 Setup (test it on a clean machine, < 5 min)  - [x] 4 Demo logins + test data

@@ -71,6 +71,11 @@ class SurveyIn(BaseModel):
     rules: List[RuleIn] = []
 
 
+class SuggestRulesIn(BaseModel):
+    title: str = Field(min_length=3, max_length=120)
+    description: str = Field(default="", max_length=2000)
+
+
 class MetaLeadIn(BaseModel):
     lead_id: str = Field(min_length=1)
     form_id: Optional[str] = None

@@ -12,9 +12,11 @@ from .. import security as sec
 from ..deps import admin_auth, db_dep, link_for, slugify
 from ..models import (AdminOverride, AdminUser, Completion, FraudFlag, Member, Payout, Referral,
                       Source, Survey, SurveyRule)
-from ..schemas import AdminLogin, FlagReviewIn, OverrideIn, PayoutStatusIn, SourceIn, StageIn, SurveyIn
+from ..schemas import (AdminLogin, FlagReviewIn, OverrideIn, PayoutStatusIn, SourceIn, StageIn,
+                       SuggestRulesIn, SurveyIn)
 from ..services import grid as grid_svc
 from ..services.referral import set_stage as apply_stage
+from ..services.rule_suggest import suggest_rules
 
 router = APIRouter()
 
@@ -66,6 +68,16 @@ def add_survey(b: SurveyIn, _=Depends(admin_auth), db: Session = Depends(db_dep)
     db.add(s)
     db.commit()
     return {"id": s.id}
+
+
+@router.post("/api/admin/suggest-rules")
+def suggest_survey_rules(b: SuggestRulesIn, _=Depends(admin_auth)):
+    """Suggest eligibility rules for a survey title/description.
+
+    Returns candidates only — nothing is saved. The admin edits them in the
+    create-survey form and saves through POST /api/admin/surveys as usual.
+    """
+    return suggest_rules(b.title, b.description)
 
 
 # ---------- respondent grid + export ----------
