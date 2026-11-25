@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from .. import fraud
 from .. import security as sec
 from ..deps import admin_auth, db_dep, link_for, slugify
-from ..models import (AdminOverride, AdminUser, Completion, FraudFlag, Member, Payout, Referral,
-                      Source, Survey, SurveyRule)
+from ..models import (AdminOverride, AdminUser, Completion, FraudFlag, Member, MetaLead, Payout,
+                      Referral, Source, Survey, SurveyRule)
 from ..schemas import (AdminLogin, FlagReviewIn, OverrideIn, PayoutStatusIn, SourceIn, StageIn,
                        SuggestRulesIn, SurveyIn)
 from ..services import grid as grid_svc
@@ -149,6 +149,38 @@ def source_stats(_=Depends(admin_auth), db: Session = Depends(db_dep)):
         out.append({"source": s.name, "type": s.type, "signups": len(st),
                     "fit": sum(x in ("Fit", "Completed") for x in st), "completed": st.count("Completed")})
     return sorted(out, key=lambda x: -x["signups"])
+
+
+# ---------- Meta leads (view + per-campaign breakdown) ----------
+@router.get("/api/admin/meta-leads")
+def meta_leads(limit: int = Query(100, ge=1, le=500), _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    rows = db.query(MetaLead).order_by(MetaLead.id.desc()).limit(limit).all()
+    return [{"id": x.id, "lead_id": x.lead_id, "campaign_id": x.campaign_id, "ad_id": x.ad_id,
+             "form_id": x.form_id, "received_at": x.received_at.isoformat(),
+             "member_id": x.member_id,
+             "member": db.get(Member, x.member_id).name if x.member_id else None,
+             "status": "linked" if x.member_id else "needs review"}
+            for x in rows]
+
+
+@router.get("/api/admin/meta-leads/stats")
+def meta_lead_stats(_=Depends(admin_auth), db: Session = Depends(db_dep)):
+    """Per-campaign (and per-ad) counts of leads, linked members and leads needing review."""
+    def bucket(rows):
+        linked = sum(1 for r in rows if r.member_id)
+        return {"leads": len(rows), "linked": linked, "needs_review": len(rows) - linked}
+
+    by_campaign: dict[str, list] = {}
+    by_ad: dict[str, list] = {}
+    for x in db.query(MetaLead).all():
+        by_campaign.setdefault(x.campaign_id or "(no campaign)", []).append(x)
+        by_ad.setdefault(x.ad_id or "(no ad)", []).append(x)
+    return {
+        "total": bucket(db.query(MetaLead).all()),
+        "by_campaign": [{"campaign_id": k, **bucket(v)} for k, v in
+                        sorted(by_campaign.items(), key=lambda kv: -len(kv[1]))],
+        "by_ad": [{"ad_id": k, **bucket(v)} for k, v in sorted(by_ad.items(), key=lambda kv: -len(kv[1]))],
+    }
 
 
 # ---------- fraud review queue ----------

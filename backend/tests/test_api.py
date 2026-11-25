@@ -641,3 +641,41 @@ def test_suggest_rules_llm_shape_is_filtered(client, admin, monkeypatch):
     d = rs.suggest_rules("Mumbai mothers", "")
     assert d["source"] == "llm"
     assert [(x["rule_type"], x["value"]) for x in d["rules"]] == [("age", "25-40"), ("city", "Mumbai")]
+
+
+# ---------- admin: Meta leads view + per-campaign breakdown ----------
+
+def _post_lead(c, lead_id, campaign="camp-1", ad="ad-1", name="Meta Person", phone="9810000077"):
+    return c.post("/api/meta/lead", json={
+        "lead_id": lead_id, "campaign_id": campaign, "ad_id": ad,
+        "fields": {"name": name, "phone": phone, "city": "Mumbai"},
+    })
+
+
+def test_meta_leads_admin_view_and_campaign_stats(client, admin):
+    _post_lead(c := client, "lead-view-1", campaign="camp-A", ad="ad-X")
+    _post_lead(c, "lead-view-2", campaign="camp-A", ad="ad-X")
+    _post_lead(c, "lead-view-3", campaign="camp-B", ad="ad-Y")
+    # invalid lead (no phone) stays for review with member_id NULL
+    client.post("/api/meta/lead", json={"lead_id": "lead-bad-1", "campaign_id": "camp-B",
+                                        "fields": {"name": "No Phone"}})
+
+    leads = client.get("/api/admin/meta-leads", headers=admin).json()
+    mine = [x for x in leads if x["lead_id"].startswith("lead-view") or x["lead_id"] == "lead-bad-1"]
+    assert {x["lead_id"] for x in mine} == {"lead-view-1", "lead-view-2", "lead-view-3", "lead-bad-1"}
+    by_id = {x["lead_id"]: x for x in mine}
+    assert by_id["lead-view-1"]["status"] == "linked" and by_id["lead-view-1"]["member"]
+    assert by_id["lead-bad-1"]["status"] == "needs review" and by_id["lead-bad-1"]["member_id"] is None
+
+    stats = client.get("/api/admin/meta-leads/stats", headers=admin).json()
+    camps = {c["campaign_id"]: c for c in stats["by_campaign"]}
+    assert camps["camp-A"]["leads"] == 2 and camps["camp-A"]["linked"] == 2
+    assert camps["camp-B"]["needs_review"] >= 1
+    assert stats["total"]["leads"] >= 4
+    ads = {a["ad_id"] for a in stats["by_ad"]}
+    assert "ad-X" in ads and "ad-Y" in ads
+
+
+def test_meta_leads_endpoints_require_auth(client):
+    assert client.get("/api/admin/meta-leads").status_code == 401
+    assert client.get("/api/admin/meta-leads/stats").status_code == 401

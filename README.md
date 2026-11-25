@@ -64,8 +64,8 @@ Production-style run: `cd frontend && npm run build`, then start uvicorn — the
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | React + Vite + Tailwind frontend | Done |
 | Automated tests (pytest API suite, 29 tests: eligibility outcomes + cool-off, HMAC link forgery, OTP + per-IP rate limits, messy import, Meta dedupe + webhook signature, admin-auth loop over every `/api/admin` route) | Done — `cd backend && python -m pytest` |
-| Meta leads admin view | Not done (endpoint + storage exist; view not required by the brief) |
-| Tier 3 "wow" feature | Not done |
+| Meta leads admin view + per-campaign breakdown | Done - Admin ? Meta leads; `GET /api/admin/meta-leads` + `/stats` |
+| Tier 3 "wow" feature | Done - (b) LLM rule suggestion: Admin ? Surveys ? "Suggest rules" (LLM when `LLM_API_KEY` set, offline keyword fallback otherwise); suggestions are editable and only saved via Create survey |
 
 ## 6. Database Design
 All tables from the brief exist in `backend/app/models.py`. Diagrams (PNG/SVG + Graphviz source) are in [`/design`](design/): ![user flow](design/user_flow.png) ![database](design/db_diagram.png)
@@ -122,7 +122,7 @@ How real Meta lead ads work: Meta calls your webhook with the lead ID, and your 
 **Security posture** (not "unhackable"): SQLAlchemy parameterised queries; Pydantic validation on bodies and query params; HMAC-SHA256 signed links (forged/wrong-kind tokens ignored, tested); OTP rate limit (5/10 min per phone) plus a per-IP signup limit (`SIGNUP_IP_LIMIT`); Meta webhook HMAC signature when `META_WEBHOOK_SECRET` is set; signed expiring tokens with PBKDF2 admin passwords; a test loops every `/api/admin` route to prove it answers 401 without a token; CORS limited to `FRONTEND_URL`; no secrets in repo; phones masked for members. Gaps: tokens are in localStorage, rate limits are in-process (single worker). Production: Postgres, Redis for sessions/OTP + rate limits, HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS.
 
 ## 9. Known Issues and Next Steps
-- Not built: Meta leads admin view, Tier 3 "wow" feature, video walkthrough, UI tests (the pytest API suite covers the backend).
+- Not built: video walkthrough, UI tests (the pytest API suite covers the backend).
 - Fraud detection uses signup-time `X-Forwarded-For` / `X-Device-Id`; behind a real proxy make sure `X-Forwarded-For` is set by the proxy (not the client) or bursts will group wrongly. Loopback/non-IP addresses are ignored.
 - Roadmap (Tier 4): ML analytics with forecasting, Postgres/Redis scaling, production payment gateway flow (plan in section 8.3), LLM rule suggestions (admin-approved, never auto-committed), audit logs, RBAC, security headers.
 

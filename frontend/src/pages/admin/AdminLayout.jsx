@@ -9,6 +9,7 @@ const tabs = [
   { to: "/admin/sources", label: "Sources" },
   { to: "/admin/stats", label: "Source stats" },
   { to: "/admin/import", label: "Import CSV" },
+  { to: "/admin/meta-leads", label: "Meta leads" },
   { to: "/admin/payouts", label: "Payouts" },
   { to: "/admin/fraud", label: "Fraud queue" },
 ];

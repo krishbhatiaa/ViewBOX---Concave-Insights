@@ -60,7 +60,7 @@ For EVERY screen confirm empty, loading and error states:
 2. [x] Admin manual override Waitlisted -> Approved with reason (endpoint + UI + logged)
 3. [x] Fraud flags + review queue: same phone twice, self-referral, referral ring A<->B, many signups from one IP; never auto-delete
 4. [x] Payout ledger: amount per completed survey + successful referral; ops approves each before Paid
-5. [ ] Meta leads admin view + per-campaign breakdown
+5. [x] Meta leads admin view + per-campaign breakdown
 
 ## 6. Tier 3 - pick exactly ONE
 - [x] (a) ML completion-likelihood badge  or (b) LLM rule suggestion with admin edit + approve (never auto-save)  or (c) Razorpay sandbox payout
