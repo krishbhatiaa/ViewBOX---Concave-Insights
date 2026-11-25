@@ -15,11 +15,11 @@ Scoring: Thinking 30% - UI/UX 30% - Code 20% - Git and Docs 20%. A flawless core
 - [x] `POST /api/meta/lead` with dedupe + invalid handling
 - [x] **FIXED: marking "Completed" must write a `completions` row** (ask which survey + quality check passed), so the 3-month cool-off really triggers
 - [x] **Admin UI to create surveys + rules** (title, deadline, quota, amount, rules with Strict/Flexible)
-- [ ] Profile as its own step right after first login (brief: "filled once after first login")
-- [ ] Save every computed result to `eligibility_results`
-- [ ] Grid status filter also supports Approved / Rejected / Waitlisted (per survey)
-- [ ] Excel (.xlsx) export in addition to CSV (openpyxl)
-- [ ] Test with the REAL `viewbox_respondents_sample.csv` (~200 rows); fix parser for its actual mess (dates, phones, gender, duplicates, blank rows, encoding)
+- [x] Profile as its own step right after first login (brief: "filled once after first login")
+- [x] Save every computed result to `eligibility_results`
+- [x] Grid status filter also supports Approved / Rejected / Waitlisted (per survey)
+- [x] Excel (.xlsx) export in addition to CSV (openpyxl)
+- [x] Test with the REAL `viewbox_respondents_sample.csv` (~200 rows); fix parser for its actual mess (dates, phones, gender, duplicates, blank rows, encoding)
 - [x] First touch vs last touch: first-seen link kept in browser, sent as `first_src`; `source_id` = last touch, `first_touch_source_id` = first touch (no separate touch log yet)
 - [x] Source-conflict case verified: Instagram link + typed referrer => source Instagram, referrer credited
 - [x] Typed referrer on the fallback form (matched by exact phone number, not ambiguous names)

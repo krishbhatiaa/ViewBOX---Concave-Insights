@@ -54,11 +54,15 @@ export default function ImportPage() {
       const d = await api(url, { method: "POST", body: fd, role: "admin" });
       if (dryRun) {
         setPreview(d);
-        toast(`Preview ready: ${d.imported} would import, ${d.skipped} would be skipped`);
+        toast(
+          `Preview ready: ${d.imported} would import, ${d.warned ?? 0} would need a look, ${d.skipped} would be skipped`,
+        );
       } else {
         setPreview(null);
         setReport(d);
-        toast(`Import finished: ${d.imported} imported, ${d.skipped} skipped`);
+        toast(
+          `Import finished: ${d.imported} imported, ${d.warned ?? 0} need a look, ${d.skipped} skipped`,
+        );
         if (fileRef.current) fileRef.current.value = "";
         setFile(null);
       }
@@ -117,8 +121,12 @@ export default function ImportPage() {
           </div>
         )}
         <p className="mt-3 text-xs text-slate-500">
-          Expected columns: name, phone, DOB, gender, city, income, interests, source (header names are matched
-          case-insensitively). Try <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">data/messy_sample.csv</code>.
+          Expected columns: name, phone, DOB (or date_of_birth), gender, city, income, interests, source — plus
+          member_id, referred_by, joined_on and last_survey_completed_on when you have them (header names are
+          matched case-insensitively). Try{" "}
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">data/viewbox_respondents_sample.csv</code>{" "}
+          (the real 189-row sample) or{" "}
+          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">data/messy_sample.csv</code>.
         </p>
       </Card>
 
@@ -135,10 +143,11 @@ export default function ImportPage() {
 
       {(preview || report) && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard label="Total rows" value={(preview || report).total_rows} tone="slate" />
             <StatCard label={preview ? "Would import" : "Imported"} value={(preview || report).imported} tone="emerald" />
             <StatCard label={preview ? "Would fix" : "Fixed"} value={(preview || report).fixed} tone="amber" />
+            <StatCard label={preview ? "Would warn" : "Warned"} value={(preview || report).warned ?? 0} tone="sky" />
             <StatCard label={preview ? "Would skip" : "Skipped"} value={(preview || report).skipped} tone="rose" />
           </div>
 
@@ -162,7 +171,9 @@ export default function ImportPage() {
                       <tr key={i}>
                         <Td className="tabular-nums">{d.row}</Td>
                         <Td>
-                          <Tag tone={d.action === "fixed" ? "amber" : "rose"}>{d.action}</Tag>
+                          <Tag tone={d.action === "fixed" ? "amber" : d.action === "warned" ? "sky" : "rose"}>
+                            {d.action}
+                          </Tag>
                         </Td>
                         <Td className="whitespace-normal text-slate-600 dark:text-slate-300">{d.reason}</Td>
                       </tr>
@@ -172,7 +183,7 @@ export default function ImportPage() {
               ) : (
                 <EmptyState
                   title={preview ? "Every row would import cleanly" : "Every row imported cleanly"}
-                  description="No fixes or skips were needed."
+                  description="No fixes, warnings or skips were needed."
                 />
               )}
             </div>

@@ -14,7 +14,9 @@ def _check(rule, m, today):
         return lo <= a <= hi, f"age {a}, this survey needs {lo} to {hi}"
     field = {"city": m.city, "gender": m.gender, "income": m.income_range}[rule.rule_type]
     allowed = [x.strip().lower() for x in v.split(",")]
-    return (field or "").lower() in allowed, f"{rule.rule_type} '{field}', this survey is for {', '.join(x.strip() for x in v.split(','))}"
+    if not field:  # imported rows can miss a field: say so in plain words instead of 'None'
+        return False, f"{rule.rule_type} unknown, this survey needs one of {', '.join(x.strip() for x in v.split(','))}"
+    return (field.lower() in allowed, f"{rule.rule_type} '{field}', this survey is for {', '.join(x.strip() for x in v.split(','))}")
 
 def next_eligible_date(db, m, now=None):
     now = now or datetime.utcnow()

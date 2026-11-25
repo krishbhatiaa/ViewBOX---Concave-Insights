@@ -35,7 +35,7 @@ Production-style run: `cd frontend && npm run build`, then start uvicorn — the
 - Admin: `admin@concave.test` / `admin123`
 - Members (OTP is shown on screen): `9000000001` Priya (referrer), `…04` Karan (in cool-off), `…06` Anita (age 17 → Rejected), `…02`/`…03`/`…07` Priya's friends (Lead/Fit/Failed)
 - New signup: copy a link from Admin → Sources (`/signup?src=…`) or Priya's referral link from her home page
-- Messy import sample: `data/messy_sample.csv` (stand-in; use the real `viewbox_respondents_sample.csv` the same way)
+- Messy import sample: `data/viewbox_respondents_sample.csv` — the real 189-row export (odd dates, `+91` phones, M/F/female genders, duplicate numbers, blank rows) — plus the tiny toy `data/messy_sample.csv`
 - Meta sample: see section 7
 
 ## 5. Features
@@ -45,12 +45,13 @@ Production-style run: `cd frontend && npm run build`, then start uvicorn — the
 | Sources as data + HMAC-signed `?src=` / `?ref=` links | Done |
 | "How did you hear about us?" fallback | Done |
 | Eligibility engine (age/city/gender/income strict or flexible, quota, deadline) + reasons | Done |
+| Every computed result saved to `eligibility_results` (one row per member+survey, updated on recompute) | Done |
 | 3-month cool-off + re-eligibility date | Done |
 | Referral stages, failure reason, referrer dashboard, masked phone | Done |
 | Home with live surveys + interest highlight | Done |
-| Admin grid: search-as-you-type, filters, CSV export of current view | Done (CSV only, no Excel) |
+| Admin grid: search-as-you-type, filters, CSV **and Excel** export of current view; filter by survey result (Approved / Rejected / Waitlisted) with plain-language reason per member | Done |
 | Source dashboard (sign-ups / Fit / Completed) | Done |
-| Messy CSV import with count + per-row reasons | Done |
+| Messy CSV import with count + per-row reasons | Done — dry-run preview, per-row fixed / warned / skipped report; tested against the real `data/viewbox_respondents_sample.csv` (189 rows → 163 imported, 26 skipped; seeded run: 53 fixed, 110 warned) |
 | Import preview before commit (dry-run, `?dry_run=true`) | Done — preview report, then Confirm import |
 | `POST /api/meta/lead` (dedupe, invalid flagged) | Done |
 | Empty / loading / error states | Done (manually checked, no UI tests) |
@@ -61,7 +62,7 @@ Production-style run: `cd frontend && npm run build`, then start uvicorn — the
 | Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | React + Vite + Tailwind frontend | Done |
-| Automated tests (pytest API suite, 18 tests) | Done — `cd backend && python -m pytest` |
+| Automated tests (pytest API suite, 23 tests) | Done — `cd backend && python -m pytest` |
 | Meta leads admin view | Not done (endpoint + storage exist; view not required by the brief) |
 | Tier 3 "wow" feature | Not done |
 
@@ -77,13 +78,14 @@ Interactive docs at `/docs`. Key ones:
 | POST | `/api/login`, `/api/signup` | Auth / create member (`src`,`ref`,`how_heard_source_id`) |
 | GET | `/api/me`, `/api/surveys`, `/api/me/referrals` | Member portal (phones masked) |
 | POST/GET | `/api/admin/login`, `/api/admin/sources` | Admin auth; sources + signed links |
-| GET | `/api/admin/members?q=&source_id=&city=&status=` | Grid; `/export` returns same view as CSV |
+| GET | `/api/admin/members?q=&source_id=&city=&status=&survey_id=` | Grid; `status` accepts pipeline stages (Lead/Fit/Completed/Failed/flagged) or, with `survey_id`, Approved/Rejected/Waitlisted; each row then carries `eligibility:{result,reason}` (computed + saved to `eligibility_results`) |
+| GET | `/api/admin/members/export` (+ same query filters) `&format=csv\|xlsx` | Same view as CSV or Excel (.xlsx, openpyxl); eligibility columns included when `survey_id` is given |
 | POST | `/api/admin/referrals/{id}/stage` | `{stage:"Completed",survey_id:1,quality_check_passed:true}` records completion, starts cool-off, creates payouts; `{stage:"Failed",failure_reason:"…"}` |
 | GET/POST | `/api/admin/surveys` | List / create survey with rules |
 | GET/POST | `/api/admin/payouts`, `POST /api/admin/payouts/{id}/status` | Ledger; body `{status:"Approved"\|"Paid"}` (or `?status=`); Paid blocked until Approved |
 | GET | `/api/me/status` | Member's own stage, completions, earnings |
 | GET | `/api/admin/source-stats` | Per-source funnel |
-| POST | `/api/admin/import` (+ `?dry_run=true`) | Multipart CSV → `{total_rows,imported,fixed,skipped,details[]}`; dry-run validates only and writes nothing |
+| POST | `/api/admin/import` (+ `?dry_run=true`) | Multipart CSV → `{total_rows,imported,fixed,warned,skipped,details[]}`; dry-run validates only and writes nothing |
 | GET | `/api/admin/fraud-flags?status=open\|Cleared\|Confirmed\|all` | Review queue |
 | POST | `/api/admin/fraud-flags/{id}/review` `{status:"Cleared"\|"Confirmed",note?}` | Review a flag — rows are never deleted; clears the member's Flagged state when no open flags remain |
 | POST | `/api/admin/fraud/scan` | Re-check all members for device/IP bursts and referral rings → `{flags_created}` |
@@ -113,10 +115,11 @@ Repeat → `{"status":"duplicate"}`. Invalid phone/name → 422 (raw lead is sto
 4. Cool-off = 90 days from last quality-passed completion. Invalid/forged links are ignored (signup still works) and the member is told.
 5. Payout amounts: survey payment = `surveys.amount`; referral bonus = flat `REFERRAL_BONUS` (default 100, env). Cool-off starts only when the quality check passed; a failed quality check marks the stage Failed with a reason and creates no payout.
 6. Pipeline stage is per signup row; "Failed" requires a reason.
+7. **CSV import** (built around the real `data/viewbox_respondents_sample.csv`): `member_id`/`referred_by` are matched inside the file to credit referrers — a referrer whose row was skipped or missing is reported as "not imported", never guessed; `joined_on` sets the member's join date; `last_survey_completed_on` becomes a completion row (no survey, so no payout) which starts the 3-month cool-off, while the member's stage still starts at `Lead` until ops marks it; unknown source names are created as new sources (type `imported`) so nothing is silently dropped and the source dashboard stays complete; income values are mapped onto the three profile buckets (`<5L`, `5-10L`, `10L+`) because survey rules compare against those exact strings; unreadable dates, blank fields and self-referrals become `warned` rows in the report instead of failing the import.
 **Security posture** (not "unhackable"): SQLAlchemy parameterised queries; Pydantic validation; HMAC-SHA256 signed links; OTP rate limit; signed expiring tokens with PBKDF2 admin passwords; admin routes protected; CORS limited to `FRONTEND_URL`; no secrets in repo; phones masked for members. Gaps: the Meta endpoint has no signature check, tokens are in localStorage, rate limit is per-phone only. Production: Postgres, Redis for sessions/OTP, HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS.
 
 ## 9. Known Issues and Next Steps
-- Not built: Meta leads admin view, Excel export, Tier 3 "wow" feature, video walkthrough, UI tests (the pytest API suite covers the backend).
+- Not built: Meta leads admin view, Tier 3 "wow" feature, video walkthrough, UI tests (the pytest API suite covers the backend).
 - Single-file backend `main.py` should be split into routers/services.
 - Fraud detection uses signup-time `X-Forwarded-For` / `X-Device-Id`; behind a real proxy make sure `X-Forwarded-For` is set by the proxy (not the client) or bursts will group wrongly. Loopback/non-IP addresses are ignored.
 - Roadmap (Tier 4): ML analytics with forecasting, Postgres/Redis scaling, production payment gateway flow (plan in section 8.3), LLM rule suggestions (admin-approved, never auto-committed), audit logs, RBAC, security headers.

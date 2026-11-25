@@ -176,16 +176,23 @@ def get_me(request: Request, t=Depends(member_auth), db: Session = Depends(db_de
 def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
     m = me(t, db); ints = [i for i in (m.interests or "").split(",") if i]; out = []
     for s in db.query(Survey).filter_by(status="live"):
-        res, why = evaluate(db, m, s); text = (s.title + " " + s.description).lower()
+        res, why = evaluate(db, m, s); record_result(db, m.id, s.id, res, why)
+        text = (s.title + " " + s.description).lower()
         out.append({"id": s.id, "title": s.title, "description": s.description, "deadline": s.deadline and s.deadline.isoformat(), "amount": s.amount,
                     "matches_interests": any(i.lower() in text for i in ints), "result": res, "reason": why})
+    db.commit()  # every computed result lands in eligibility_results
     return sorted(out, key=lambda x: not x["matches_interests"])
 
 @app.get("/api/me/status")
 def my_status(t=Depends(member_auth), db: Session = Depends(db_dep)):
     m = me(t, db); r = db.query(Referral).filter_by(referred_member_id=m.id).first()
+    comps = []
+    for c in db.query(Completion).filter_by(member_id=m.id):
+        sv = db.get(Survey, c.survey_id) if c.survey_id else None
+        comps.append({"survey": sv.title if sv else "Completed before joining (imported)",
+                      "completed_at": c.completed_at.date().isoformat(), "quality_passed": c.quality_check_passed})
     return {"stage": r.stage if r else "Lead", "failure_reason": r.failure_reason if r else None,
-            "completions": [{"survey": db.get(Survey, c.survey_id).title, "completed_at": c.completed_at.date().isoformat(), "quality_passed": c.quality_check_passed} for c in db.query(Completion).filter_by(member_id=m.id)],
+            "completions": comps,
             "payouts": [{"kind": "Referral bonus" if p.referral_id else "Survey payment", "amount": p.amount, "status": p.status} for p in db.query(Payout).filter_by(member_id=m.id)]}
 
 @app.get("/api/me/referrals")
@@ -218,6 +225,18 @@ def add_survey(b: SurveyIn, _=Depends(admin_auth), db: Session = Depends(db_dep)
     s = Survey(**b.model_dump(exclude={"rules"}), rules=[SurveyRule(**r.model_dump(), operator="between" if r.rule_type == "age" else "in") for r in b.rules]); db.add(s); db.commit()
     return {"id": s.id}
 
+ELIGIBILITY_STATUSES = ("Approved", "Rejected", "Waitlisted")  # per-survey results (need survey_id)
+STAGE_STATUSES = ("Lead", "Fit", "Completed", "Failed", "flagged")
+
+def record_result(db, member_id, survey_id, result, reason):
+    """Persist a computed eligibility result: one row per member+survey, updated in place."""
+    row = db.query(EligibilityResult).filter_by(member_id=member_id, survey_id=survey_id).first()
+    if row is None:
+        db.add(EligibilityResult(member_id=member_id, survey_id=survey_id, result=result, reason_text=reason))
+    else:
+        row.result, row.reason_text, row.computed_at = result, reason, datetime.utcnow()
+    return result, reason
+
 def member_query(db, q, source_id, city, status):
     qs = db.query(Member)
     if q:
@@ -231,20 +250,66 @@ def member_query(db, q, source_id, city, status):
         qs = qs.filter(Member.id.in_(db.query(Referral.referred_member_id).filter(Referral.stage == status)))
     return qs.order_by(Member.id)
 
-def grid_rows(db, **f):
+def grid_rows(db, q="", source_id=None, city="", status="", survey_id=None):
+    """Grid rows for the current search/filter view.
+
+    When survey_id is given, every candidate member is evaluated against that survey,
+    the result is saved to eligibility_results and returned as `eligibility`;
+    status=Approved|Rejected|Waitlisted then narrows the view to that result.
+    """
+    survey = None
+    if survey_id:
+        survey = db.get(Survey, survey_id)
+        if not survey: raise HTTPException(404, "Survey not found.")
+        if status and status not in ELIGIBILITY_STATUSES and status not in STAGE_STATUSES:
+            raise HTTPException(422, f"Unknown status '{status}'.")
+    elif status in ELIGIBILITY_STATUSES:
+        raise HTTPException(422, "Choose a survey first to filter by Approved / Rejected / Waitlisted.")
+    stage_status = status if status in STAGE_STATUSES else ""
     stage = {r.referred_member_id: r for r in db.query(Referral)}
-    return [{"id": m.id, "referral_id": stage[m.id].id if m.id in stage else None, "name": m.name, "phone": m.phone, "city": m.city, "gender": m.gender,
-             "source": m.source.name if m.source else "Unknown", "referrer": m.referrer.name if m.referrer else "",
-             "stage": stage[m.id].stage if m.id in stage else "Lead", "created_at": m.created_at.date().isoformat()} for m in member_query(db, **f)]
+    out = []
+    for m in member_query(db, q=q, source_id=source_id, city=city, status=stage_status):
+        row = {"id": m.id, "referral_id": stage[m.id].id if m.id in stage else None, "name": m.name, "phone": m.phone,
+               "city": m.city, "gender": m.gender, "source": m.source.name if m.source else "Unknown",
+               "referrer": m.referrer.name if m.referrer else "",
+               "stage": stage[m.id].stage if m.id in stage else "Lead", "created_at": m.created_at.date().isoformat()}
+        if survey:
+            res, why = evaluate(db, m, survey)
+            record_result(db, m.id, survey.id, res, why)  # saved so the grid/audit can read it later
+            row["eligibility"] = {"result": res, "reason": why}
+            if status in ELIGIBILITY_STATUSES and res != status: continue
+        out.append(row)
+    if survey: db.commit()  # persist every computed result in one go
+    return out
 
 @app.get("/api/admin/members")
-def admin_members(q: str = "", source_id: Optional[int] = None, city: str = "", status: str = "", _=Depends(admin_auth), db: Session = Depends(db_dep)):
-    return grid_rows(db, q=q, source_id=source_id, city=city, status=status)
+def admin_members(q: str = "", source_id: Optional[int] = None, city: str = "", status: str = "",
+                  survey_id: Optional[int] = None, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return grid_rows(db, q=q, source_id=source_id, city=city, status=status, survey_id=survey_id)
+
+GRID_FIELDS = ["id", "name", "phone", "city", "gender", "source", "referrer", "stage", "created_at", "eligibility", "eligibility_reason"]
 
 @app.get("/api/admin/members/export")
-def export(q: str = "", source_id: Optional[int] = None, city: str = "", status: str = "", _=Depends(admin_auth), db: Session = Depends(db_dep)):
-    rows = grid_rows(db, q=q, source_id=source_id, city=city, status=status); buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=["id", "name", "phone", "city", "gender", "source", "referrer", "stage", "created_at"], extrasaction="ignore"); w.writeheader(); w.writerows(rows)
+def export(q: str = "", source_id: Optional[int] = None, city: str = "", status: str = "",
+           survey_id: Optional[int] = None, format: str = Query("csv", pattern="^(csv|xlsx)$"),
+           _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    """Download the current grid view as CSV or Excel (.xlsx)."""
+    rows = grid_rows(db, q=q, source_id=source_id, city=city, status=status, survey_id=survey_id)
+    for r in rows:  # flatten eligibility for the spreadsheet
+        e = r.pop("eligibility", None) or {}
+        r["eligibility"] = e.get("result", "")
+        r["eligibility_reason"] = e.get("reason", "")
+    fields = GRID_FIELDS if survey_id else [f for f in GRID_FIELDS if f not in ("eligibility", "eligibility_reason")]
+    if format == "xlsx":
+        from openpyxl import Workbook
+        wb = Workbook(); ws = wb.active; ws.title = "Members"
+        ws.append(fields)
+        for r in rows: ws.append([r.get(k, "") for k in fields])
+        buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+        return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                 headers={"Content-Disposition": "attachment; filename=members.xlsx"})
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=members.csv"})
 
 BONUS = float(os.getenv("REFERRAL_BONUS", "100"))
@@ -364,36 +429,81 @@ def delete_override(oid: int, _=Depends(admin_auth), db: Session = Depends(db_de
     return {"ok": True}
 
 # ---------- messy CSV import ----------
-def parse_dob(v):
-    for f in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%m/%d/%Y", "%d %b %Y"):
-        try:
-            d = datetime.strptime(v.strip(), f).date()
-            if 1920 < d.year <= date.today().year: return d
-        except ValueError: pass
+DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d %b %Y",
+                "%d/%m/%y", "%d-%m-%y", "%d.%m.%y", "%Y/%m/%d", "%m/%d/%Y")
+
+def parse_date(v, floor=1920):
+    """Read the date formats seen in messy exports (ISO, dd/mm/yyyy, dd-mm-yy, ...).
+
+    Two-digit years pivot around today ('68' -> 1968, '25' -> 2025); impossible or future
+    dates return None so the caller reports the row instead of guessing.
+    """
+    s = str(v or "").strip()
+    if not s: return None
+    today = date.today()
+    for f in DATE_FORMATS:
+        try: d = datetime.strptime(s, f).date()
+        except ValueError: continue
+        if "%y" in f and d.year > today.year: d = d.replace(year=d.year - 100)
+        if floor < d.year <= today.year: return d
     return None
+
+INCOME_BUCKETS = {  # messy export values -> the three buckets the profile form offers
+    "below 3l": "<5L", "below 5l": "<5L", "<5l": "<5L", "0-5l": "<5L", "under 5l": "<5L",
+    "3l-6l": "5-10L", "3-6l": "5-10L", "5-10l": "5-10L", "6l-10l": "5-10L", "5 lakh": "5-10L",
+    "10l-20l": "10L+", "10l+": "10L+", "above 10l": "10L+", "above 20l": "10L+", "20l+": "10L+",
+}
+
+def norm_income(v):
+    """-> (value, note, level): level 'fix' when we mapped it, 'warn' when we could not."""
+    s = str(v or "").strip()
+    if not s: return None, "no income in this row", "warn"
+    hit = INCOME_BUCKETS.get(s.lower())
+    if hit:
+        return (hit, None, "fix") if hit.lower() == s.lower() else (hit, f"income '{s}' mapped to '{hit}'", "fix")
+    return s, f"income '{s}' kept as written (profile options are <5L, 5-10L, 10L+)", "warn"
 
 def _plan_import_row(raw, srcs, seen):
     """Validate + normalise one CSV row without touching the database.
 
-    Returns (plan, notes). Raises ValueError with a human reason to skip the row.
+    Returns (plan, fixes, warns). Raises ValueError with a human reason to skip the row.
     """
     r = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
-    note = []
+    fixes, warns = [], []
     phone = norm_phone(r.get("phone") or r.get("mobile"))
     if not phone: raise ValueError("invalid or missing phone")
     if phone in seen: raise ValueError("duplicate phone")
     name = " ".join((r.get("name") or "").split()).title()
     if len(name) < 2: raise ValueError("missing name")
-    dob = parse_dob(r.get("dob") or "") if r.get("dob") else None
-    if r.get("dob") and not dob: note.append("unreadable DOB cleared")
-    g = {"m": "Male", "male": "Male", "f": "Female", "female": "Female"}.get((r.get("gender") or "").lower(), "Other" if r.get("gender") else None)
-    if r.get("phone") != phone: note.append("phone normalised")
-    src = srcs.get((r.get("source") or "").lower())
-    plan = {"phone": phone, "name": name, "dob": dob, "gender": g,
-            "city": (r.get("city") or "").title() or None,
-            "income_range": r.get("income") or r.get("income_range") or None,
-            "interests": r.get("interests", "").replace(";", ","), "source": src}
-    return plan, note
+    raw_dob = r.get("dob") or r.get("date_of_birth") or ""
+    dob = parse_date(raw_dob)
+    if raw_dob and not dob: warns.append(f"date of birth '{raw_dob}' could not be read")
+    g_raw = r.get("gender") or ""
+    g = {"m": "Male", "male": "Male", "f": "Female", "female": "Female"}.get(g_raw.lower()) or ("Other" if g_raw else None)
+    if g_raw and g != g_raw: fixes.append(f"gender '{g_raw}' -> {g}")
+    if not g_raw: warns.append("no gender in this row")
+    if (r.get("phone") or "") != phone: fixes.append("phone normalised")
+    city_raw = r.get("city") or ""
+    city = city_raw.title() if city_raw and (city_raw.islower() or city_raw.isupper()) else city_raw
+    if city != city_raw: fixes.append(f"city '{city_raw}' -> {city}")
+    income, note, level = norm_income(r.get("income") or r.get("income_range"))
+    if note: (fixes if level == "fix" else warns).append(note)
+    src_name = r.get("source") or ""
+    if "source" in r and not src_name: warns.append("no source in this row - the member will show as Unknown")
+    elif src_name and not srcs.get(src_name.lower()): warns.append(f"source '{src_name}' is not set up yet - it will be created")
+    raw_joined = r.get("joined_on") or ""
+    joined = parse_date(raw_joined)
+    if raw_joined and not joined: warns.append(f"join date '{raw_joined}' could not be read - using today")
+    raw_done = r.get("last_survey_completed_on") or ""
+    done = parse_date(raw_done)
+    if raw_done and not done: warns.append(f"last survey date '{raw_done}' could not be read - no cool-off recorded")
+    plan = {"phone": phone, "name": name, "dob": dob, "gender": g, "city": city or None,
+            "income_range": income, "interests": r.get("interests", "").replace(";", ","),
+            "source": srcs.get(src_name.lower()), "source_name": src_name,
+            "legacy_id": (r.get("member_id") or "").strip().upper() or None,
+            "ref_by": (r.get("referred_by") or "").strip().upper() or None,
+            "joined": joined, "completed": done}
+    return plan, fixes, warns
 
 @app.post("/api/admin/import")
 async def import_csv(file: UploadFile = File(...), dry_run: bool = Query(False), _=Depends(admin_auth), db: Session = Depends(db_dep)):
@@ -402,25 +512,64 @@ async def import_csv(file: UploadFile = File(...), dry_run: bool = Query(False),
     rows = list(csv.DictReader(io.StringIO(text)))
     if not rows: raise HTTPException(422, "The file has no data rows.")
     srcs = {s.name.lower(): s for s in db.query(Source)}; seen = {m.phone for m in db.query(Member.phone)}
-    added, fixed, skipped, errs, plans = 0, 0, 0, [], []
+    entries, planned = {}, []
     for i, raw in enumerate(rows, start=2):
         try:
-            plan, note = _plan_import_row(raw, srcs, seen)
-            seen.add(plan["phone"]); plans.append((i, plan, note)); added += 1
-            if note: fixed += 1; errs.append({"row": i, "action": "fixed", "reason": ", ".join(note)})
+            plan, fixes, warns = _plan_import_row(raw, srcs, seen)
+            seen.add(plan["phone"]); planned.append((i, plan, fixes, warns))
         except Exception as e:
-            skipped += 1; errs.append({"row": i, "action": "skipped", "reason": str(e)[:120]})
+            entries[i] = {"row": i, "action": "skipped", "reason": str(e)[:120]}
+    # referred_by carries legacy ids (VB10002): link referrers once every row is planned
+    by_legacy, by_phone = {}, {}
+    for _, plan, _, _ in planned:
+        if plan["legacy_id"]: by_legacy.setdefault(plan["legacy_id"], plan)
+        by_phone.setdefault(plan["phone"], plan)
+    for _, plan, _, warns in planned:
+        if not plan["ref_by"]: continue
+        target = by_legacy.get(plan["ref_by"]) or by_phone.get(plan["ref_by"])
+        if target is plan: warns.append("self-referral ignored")
+        elif not target: warns.append(f"referrer '{plan['ref_by']}' was not imported - no referral credited")
+        else: plan["referrer"] = target
+    fixed = warned = 0
+    for i, plan, fixes, warns in planned:
+        if warns:
+            warned += 1; entries[i] = {"row": i, "action": "warned", "reason": "; ".join(fixes + warns)[:400]}
+        elif fixes:
+            fixed += 1; entries[i] = {"row": i, "action": "fixed", "reason": "; ".join(fixes)[:400]}
+    detail = [entries[k] for k in sorted(entries)]
+    added = len(planned); skipped = len(rows) - added
+    summary = {"total_rows": len(rows), "imported": added, "fixed": fixed, "warned": warned,
+               "skipped": skipped, "details": detail}
     if dry_run:
         # Nothing has been written — validation only.
-        return {"preview": True, "total_rows": len(rows), "imported": added, "fixed": fixed, "skipped": skipped, "details": errs}
-    for i, plan, note in plans:
+        return {"preview": True, **summary}
+    for i, plan, fixes, warns in planned:
+        s = plan["source"]
+        if s is None and plan["source_name"]:  # sources are data: unknown names become real sources
+            key = plan["source_name"].lower(); s = srcs.get(key)
+            if s is None:
+                base = slugify(plan["source_name"]) or "source"; slug, n = base, 2
+                while db.query(Source).filter_by(unique_slug=slug).first(): slug, n = f"{base}-{n}", n + 1
+                s = Source(name=plan["source_name"], type="imported", unique_slug=slug)
+                db.add(s); db.flush(); srcs[key] = s
         m = Member(phone=plan["phone"], name=plan["name"], dob=plan["dob"], gender=plan["gender"],
                    city=plan["city"], income_range=plan["income_range"], interests=plan["interests"],
-                   source_id=plan["source"] and plan["source"].id,
-                   first_touch_source_id=plan["source"] and plan["source"].id)
-        db.add(m); db.flush(); db.add(Referral(referred_member_id=m.id))
-    db.add(ImportLog(filename=file.filename, total_rows=len(rows), fixed_count=fixed, skipped_count=skipped, error_details_json=json.dumps(errs))); db.commit()
-    return {"total_rows": len(rows), "imported": added, "fixed": fixed, "skipped": skipped, "details": errs}
+                   source_id=s and s.id, first_touch_source_id=s and s.id)
+        if plan["joined"]: m.created_at = datetime.combine(plan["joined"], datetime.min.time())
+        db.add(m); db.flush(); plan["_member"] = m
+    for i, plan, fixes, warns in planned:
+        m = plan["_member"]; ref = plan.get("referrer")
+        ref_id = ref["_member"].id if ref is not None else None
+        if ref_id and ref_id != m.id: m.referrer_id = ref_id
+        db.add(Referral(referrer_id=ref_id if ref_id and ref_id != m.id else None, referred_member_id=m.id))
+        if plan["completed"]:  # legacy completion history -> starts the 3-month cool-off
+            db.add(Completion(member_id=m.id, survey_id=None,
+                              completed_at=datetime.combine(plan["completed"], datetime.min.time()),
+                              quality_check_passed=True))
+    db.add(ImportLog(filename=file.filename, total_rows=len(rows), fixed_count=fixed, skipped_count=skipped,
+                     error_details_json=json.dumps(detail)))
+    db.commit()
+    return summary
 
 # ---------- Meta lead ads ----------
 @app.post("/api/meta/lead")

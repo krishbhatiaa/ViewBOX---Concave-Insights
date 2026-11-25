@@ -1,4 +1,6 @@
 import io
+import os
+from datetime import date, timedelta
 
 from conftest import admin_headers, make_survey, member_token, signup_member
 
@@ -153,6 +155,81 @@ def test_grid_search_filter_export(client, admin):
     assert r.status_code == 200 and "Zebra Person" in r.text and r.text.startswith("id,")
 
 
+def test_eligibility_results_are_saved(client, admin):
+    """Every computed result lands in eligibility_results (one row per member+survey)."""
+    from app.models import EligibilityResult, Member, SessionLocal
+    sid = _zomato(client, admin)
+    signup_member(client, "9810000051", name="Saved Rejected", dob="2009-06-01")
+    signup_member(client, "9810000052", name="Saved Approved", dob="1995-01-01", city="Mumbai")
+    for phone in ("9810000051", "9810000052"):  # member views the survey list -> results persisted
+        assert client.get("/api/surveys", headers=member_token(client, phone)).status_code == 200
+    db = SessionLocal()
+    m1 = db.query(Member).filter_by(phone="9810000051").first()
+    m2 = db.query(Member).filter_by(phone="9810000052").first()
+    r1 = db.query(EligibilityResult).filter_by(member_id=m1.id, survey_id=sid).first()
+    r2 = db.query(EligibilityResult).filter_by(member_id=m2.id, survey_id=sid).first()
+    assert r1 and r1.result == "Rejected" and "age" in r1.reason_text
+    assert r2 and r2.result == "Approved" and r2.reason_text
+    db.close()
+    # recomputing updates the same row instead of appending duplicates
+    client.get("/api/surveys", headers=member_token(client, "9810000052"))
+    db = SessionLocal()
+    assert db.query(EligibilityResult).filter_by(member_id=m2.id, survey_id=sid).count() == 1
+    db.close()
+
+
+def test_grid_filter_by_survey_result(client, admin):
+    """Grid can filter by Approved / Rejected / Waitlisted for a chosen survey."""
+    sid = _zomato(client, admin)
+    signup_member(client, "9810000053", name="Grid Approved Person", dob="1995-01-01", city="Mumbai")
+    signup_member(client, "9810000054", name="Grid Rejected Person", dob="2009-06-01")
+    signup_member(client, "9810000055", name="Grid Waitlisted Person", dob="1995-01-01", city="Chennai")
+    # eligibility status without a survey -> clear 422
+    r = client.get("/api/admin/members", params={"status": "Approved"}, headers=admin)
+    assert r.status_code == 422 and "survey" in r.json()["detail"].lower()
+    # survey selected: every row carries its saved result + plain reason
+    rows = client.get("/api/admin/members", params={"survey_id": sid, "q": "Grid "}, headers=admin).json()
+    by_name = {x["name"]: x["eligibility"] for x in rows}
+    assert by_name["Grid Approved Person"]["result"] == "Approved"
+    assert by_name["Grid Rejected Person"]["result"] == "Rejected" and "age" in by_name["Grid Rejected Person"]["reason"]
+    assert by_name["Grid Waitlisted Person"]["result"] == "Waitlisted"
+    # filtered views keep only the matching result
+    rows = client.get("/api/admin/members", params={"survey_id": sid, "status": "Approved", "q": "Grid "}, headers=admin).json()
+    assert [x["name"] for x in rows] == ["Grid Approved Person"]
+    rows = client.get("/api/admin/members", params={"survey_id": sid, "status": "Waitlisted", "q": "Grid "}, headers=admin).json()
+    assert [x["name"] for x in rows] == ["Grid Waitlisted Person"]
+    rows = client.get("/api/admin/members", params={"survey_id": sid, "status": "Rejected", "q": "Grid "}, headers=admin).json()
+    assert [x["name"] for x in rows] == ["Grid Rejected Person"]
+    # unknown survey -> 404
+    assert client.get("/api/admin/members", params={"survey_id": 999999}, headers=admin).status_code == 404
+
+
+def test_export_excel_and_csv(client, admin):
+    """The current grid view downloads as .xlsx as well as .csv."""
+    from io import BytesIO
+    from openpyxl import load_workbook
+    signup_member(client, "9810000056", name="Excel Person", city="Mumbai")
+    r = client.get("/api/admin/members/export", params={"q": "Excel Person", "format": "xlsx"}, headers=admin)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument")
+    assert "members.xlsx" in r.headers["content-disposition"]
+    ws = load_workbook(BytesIO(r.content)).active
+    grid = list(ws.iter_rows(values_only=True))
+    assert grid[0][:3] == ("id", "name", "phone")
+    assert any("Excel Person" in row for row in grid)
+    # csv stays the default and an unknown format is rejected
+    r = client.get("/api/admin/members/export", params={"q": "Excel Person"}, headers=admin)
+    assert r.headers["content-type"].startswith("text/csv") and "Excel Person" in r.text
+    assert client.get("/api/admin/members/export", params={"format": "pdf"}, headers=admin).status_code == 422
+    # with a survey the sheet also carries eligibility + reason columns
+    sid = _zomato(client, admin)
+    r = client.get("/api/admin/members/export", params={"q": "Excel Person", "survey_id": sid, "format": "xlsx"}, headers=admin)
+    ws = load_workbook(BytesIO(r.content)).active
+    header = [c.value for c in next(ws.iter_rows(max_row=1))]
+    assert "eligibility" in header and "eligibility_reason" in header
+    assert any(c.value == "Approved" for row in ws.iter_rows(min_row=2) for c in row)
+
+
 def test_stage_flow_and_payout_approval_gate(client, admin):
     sid = make_survey(client, admin, "Payout Test Survey", [
         {"rule_type": "age", "value": "18-99", "strict_or_flexible": "strict"},
@@ -228,6 +305,97 @@ def test_import_preview_then_commit(client, admin):
     assert len(client.get("/api/admin/members", headers=admin).json()) == before + 1
     rows = client.get("/api/admin/members", params={"q": "Import One"}, headers=admin).json()
     assert rows and rows[0]["phone"] == "9822233445"  # normalised
+
+
+def _max_member_id(db):
+    from app.models import Member
+    row = db.query(Member.id).order_by(Member.id.desc()).first()
+    return row[0] if row else 0
+
+
+def test_import_real_sample_file(client, admin):
+    """The real messy export (189 rows, data/viewbox_respondents_sample.csv) must import
+    without crashing and keep its dates, sources, referrers and income buckets."""
+    from app.models import Completion, Member, SessionLocal, Source
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "viewbox_respondents_sample.csv")
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    db = SessionLocal(); max_before = _max_member_id(db); db.close()
+    files = lambda: {"file": ("viewbox_respondents_sample.csv", io.BytesIO(raw), "text/csv")}
+    # preview: reports, writes nothing
+    d = client.post("/api/admin/import", params={"dry_run": "true"}, files=files(), headers=admin).json()
+    assert d["preview"] is True and d["total_rows"] == 189
+    assert d["imported"] + d["skipped"] == 189 and d["imported"] >= 160 and d["skipped"] >= 20
+    assert {x["action"] for x in d["details"]} <= {"fixed", "warned", "skipped"}
+    db = SessionLocal(); assert _max_member_id(db) == max_before; db.close()
+    # commit
+    d = client.post("/api/admin/import", files=files(), headers=admin).json()
+    assert "preview" not in d and d["imported"] == d["total_rows"] - d["skipped"]
+    db = SessionLocal()
+    new = db.query(Member).filter(Member.id > max_before).all()
+    assert len(new) == d["imported"]
+    by_phone = {m.phone: m for m in new}
+    # date_of_birth header is honoured, including 2-digit years
+    assert by_phone["9021331114"].dob == date(1989, 2, 25)   # "25/02/1989"
+    assert by_phone["8728547667"].dob == date(1984, 3, 1)    # "01-03-84" -> 1984, not 2084
+    assert sum(1 for m in new if m.dob) >= len(new) - 2
+    # income values are mapped onto the three buckets the profile form offers
+    assert {m.income_range for m in new if m.income_range} <= {"<5L", "5-10L", "10L+"}
+    assert by_phone["9958519043"].income_range == "<5L"      # "Below 3L"
+    # unknown source names become real sources instead of being dropped
+    names = {s.name for s in db.query(Source)}
+    assert {"WhatsApp Group - Pune", "insta"} <= names
+    assert sum(1 for m in new if m.source_id) >= len(new) - 5  # only blank-source rows are unattributed
+    # referred_by (legacy member ids) credits the referrer
+    assert sum(1 for m in new if m.referrer_id) >= 25
+    # last_survey_completed_on becomes a completion, so the 3-month cool-off applies
+    comps = db.query(Completion).filter(Completion.survey_id == None, Completion.member_id > max_before).count()
+    assert comps >= 70
+    # joined_on is honoured instead of stamping everything with today
+    assert sum(1 for m in new if m.created_at.date() != date.today()) >= len(new) - 2
+    db.close()
+
+
+def test_import_dates_referrer_and_unknown_source(client, admin):
+    """Column-level behaviour: legacy ids link referrers, unknown sources are created,
+    messy dates are parsed, and problems are reported as 'warned' not hidden."""
+    from app.models import Completion, Member, Referral, SessionLocal, Source
+    recent = (date.today() - timedelta(days=10)).strftime("%d/%m/%Y")
+    csv = ("member_id,name,phone,gender,date_of_birth,city,income_range,source,referred_by,joined_on,last_survey_completed_on\n"
+           "VBX1,Import Referrer,98333 11111,F,01-03-84,Pune,Below 3L,LinkedIn,,01-08-25,\n"
+           f"VBX2,Import Friend,9833311112,male,1995-06-10,mumbai,3L-6L,Brand New Channel,VBX1,15/08/2026,{recent}\n"
+           "VBX3,Import Orphan,9833311113,f,,Delhi,6L-10L,Website,VB99999,not-a-date,\n")
+    files = {"file": ("cols.csv", io.BytesIO(csv.encode()), "text/csv")}
+    d = client.post("/api/admin/import", params={"dry_run": "true"}, files=files, headers=admin).json()
+    assert d["imported"] == 3 and d["skipped"] == 0
+    reasons = {x["row"]: x["reason"] for x in d["details"]}
+    assert "not imported" in reasons[4]                    # VB99999 cannot be linked
+    assert "could not be read" in reasons[4]               # joined_on is nonsense
+    assert "Brand New Channel" in reasons[3]
+    r = client.post("/api/admin/import", files=files, headers=admin)
+    assert r.status_code == 200, r.text
+    db = SessionLocal()
+    referrer = db.query(Member).filter_by(phone="9833311111").first()
+    friend = db.query(Member).filter_by(phone="9833311112").first()
+    orphan = db.query(Member).filter_by(phone="9833311113").first()
+    # dates + normalisation
+    assert referrer.dob == date(1984, 3, 1) and referrer.gender == "Female"
+    assert referrer.income_range == "<5L" and referrer.created_at.date() == date(2025, 8, 1)
+    assert friend.city == "Mumbai" and friend.income_range == "5-10L" and friend.gender == "Male"
+    # referred_by -> referrer credited, unknown source created
+    assert friend.referrer_id == referrer.id
+    fr = db.query(Referral).filter_by(referred_member_id=friend.id).first()
+    assert fr.referrer_id == referrer.id and fr.stage == "Lead"
+    assert db.query(Source).filter_by(name="Brand New Channel").first() is not None
+    assert orphan.referrer_id is None and orphan.dob is None and orphan.gender == "Female"
+    # legacy completion -> cool-off + status screen shows where it came from
+    comp = db.query(Completion).filter_by(member_id=friend.id, survey_id=None).first()
+    assert comp is not None and comp.quality_check_passed is True
+    mh = member_token(client, "9833311112")
+    status = client.get("/api/me/status", headers=mh).json()
+    assert status["stage"] == "Lead" and status["completions"][0]["survey"].startswith("Completed before joining")
+    assert client.get("/api/me", headers=mh).json()["next_eligible_date"]  # 3-month cool-off active
+    db.close()
 
 
 # ---------- fraud: bursts, scan, review ----------

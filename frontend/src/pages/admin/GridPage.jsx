@@ -20,7 +20,7 @@ import {
   Th,
 } from "../../components/ui.jsx";
 
-const STATUSES = [
+const STAGE_STATUSES = [
   { value: "", label: "All statuses" },
   { value: "Lead", label: "Lead" },
   { value: "Fit", label: "Fit" },
@@ -28,6 +28,9 @@ const STATUSES = [
   { value: "Failed", label: "Failed" },
   { value: "flagged", label: "Flagged" },
 ];
+// per-survey results: only selectable once a survey is chosen
+const ELIGIBILITY_STATUSES = ["Approved", "Rejected", "Waitlisted"];
+const isEligibilityStatus = (s) => ELIGIBILITY_STATUSES.includes(s);
 
 export default function GridPage() {
   const toast = useToast();
@@ -35,6 +38,8 @@ export default function GridPage() {
   const [sourceId, setSourceId] = useState("");
   const [city, setCity] = useState("");
   const [status, setStatus] = useState("");
+  const [filterSurveyId, setFilterSurveyId] = useState("");
+  const [filterSurveys, setFilterSurveys] = useState([]);
   const [sources, setSources] = useState([]);
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
@@ -50,8 +55,9 @@ export default function GridPage() {
     if (sourceId) p.set("source_id", sourceId);
     if (dCity) p.set("city", dCity);
     if (status) p.set("status", status);
+    if (filterSurveyId) p.set("survey_id", filterSurveyId);
     return p.toString();
-  }, [dq, sourceId, dCity, status]);
+  }, [dq, sourceId, dCity, status, filterSurveyId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,14 +80,17 @@ export default function GridPage() {
     api("/api/admin/sources", { role: "admin" })
       .then(setSources)
       .catch(() => {});
+    api("/api/admin/surveys", { role: "admin" })
+      .then(setFilterSurveys)
+      .catch(() => {});
   }, []);
 
-  async function exportCsv() {
+  async function exportView(fmt) {
     setExporting(true);
     try {
-      const blob = await api(`/api/admin/members/export?${qs()}`, { role: "admin", raw: true });
-      downloadBlob(blob, "members.csv");
-      toast("Exported the current view as members.csv");
+      const blob = await api(`/api/admin/members/export?${qs()}&format=${fmt}`, { role: "admin", raw: true });
+      downloadBlob(blob, fmt === "xlsx" ? "members.xlsx" : "members.csv");
+      toast(`Exported the current view as members.${fmt}`);
     } catch (err) {
       toast(err.message, "error");
     } finally {
@@ -161,7 +170,15 @@ export default function GridPage() {
     }
   }
 
-  const filtersActive = dq || sourceId || dCity || status;
+  const filtersActive = dq || sourceId || dCity || status || filterSurveyId;
+
+  function clearFilters() {
+    setQ("");
+    setSourceId("");
+    setCity("");
+    setStatus("");
+    setFilterSurveyId("");
+  }
 
   // manual eligibility override state
   const [ovDialog, setOvDialog] = useState(null); // {row}
@@ -240,15 +257,20 @@ export default function GridPage() {
         title="Members"
         description="Search, filter, change referral stages, and export exactly what you see."
         actions={
-          <Button variant="secondary" onClick={exportCsv} loading={exporting} disabled={!rows?.length}>
-            Export current view (CSV)
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => exportView("csv")} loading={exporting} disabled={!rows?.length}>
+              Export CSV
+            </Button>
+            <Button variant="secondary" onClick={() => exportView("xlsx")} loading={exporting} disabled={!rows?.length}>
+              Export Excel
+            </Button>
+          </>
         }
       />
 
       {/* sticky filter bar */}
       <div className="sticky top-[57px] z-20 -mx-4 mb-4 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:mx-0 sm:rounded-xl sm:border sm:px-4">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Field label="Search" id="grid-q">
             <Input
               id="grid-q"
@@ -271,29 +293,46 @@ export default function GridPage() {
           <Field label="City" id="grid-city">
             <Input id="grid-city" placeholder="Any city…" value={city} onChange={(e) => setCity(e.target.value)} />
           </Field>
-          <Field label="Status" id="grid-status">
-            <Select id="grid-status" value={status} onChange={(e) => setStatus(e.target.value)}>
-              {STATUSES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
+          <Field label="Survey result" id="grid-survey" hint={filterSurveyId ? undefined : "Pick a survey to see Approved / Rejected / Waitlisted."}>
+            <Select
+              id="grid-survey"
+              value={filterSurveyId}
+              onChange={(e) => {
+                setFilterSurveyId(e.target.value);
+                if (!e.target.value && isEligibilityStatus(status)) setStatus(""); // result needs a survey
+              }}
+            >
+              <option value="">No survey selected</option>
+              {filterSurveys.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.title}
                 </option>
               ))}
+            </Select>
+          </Field>
+          <Field label="Status" id="grid-status">
+            <Select id="grid-status" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <optgroup label="Pipeline">
+                {STAGE_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Survey result (needs a survey)">
+                {ELIGIBILITY_STATUSES.map((s) => (
+                  <option key={s} value={s} disabled={!filterSurveyId}>
+                    {s}
+                  </option>
+                ))}
+              </optgroup>
             </Select>
           </Field>
         </div>
         {filtersActive && (
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-slate-500">Filters active</span>
-            <Button
-              variant="ghost"
-              className="!min-h-8 !px-2 !text-xs"
-              onClick={() => {
-                setQ("");
-                setSourceId("");
-                setCity("");
-                setStatus("");
-              }}
-            >
+            <Button variant="ghost" className="!min-h-8 !px-2 !text-xs" onClick={clearFilters}>
               Clear filters
             </Button>
           </div>
@@ -327,6 +366,7 @@ export default function GridPage() {
                   <Th>Source</Th>
                   <Th>Referrer</Th>
                   <Th>Stage</Th>
+                  {filterSurveyId && <Th>Survey result</Th>}
                   <Th>Joined</Th>
                   <Th>Action</Th>
                 </tr>
@@ -343,6 +383,18 @@ export default function GridPage() {
                     <Td>
                       <StageTag stage={m.stage} />
                     </Td>
+                    {filterSurveyId && (
+                      <Td>
+                        {m.eligibility ? (
+                          <span title={m.eligibility.reason} className="inline-flex flex-col gap-0.5">
+                            <StageTag stage={m.eligibility.result} />
+                            <span className="max-w-56 truncate text-xs text-slate-500">{m.eligibility.reason}</span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </Td>
+                    )}
                     <Td className="text-slate-500">{m.created_at}</Td>
                     <Td>
                       <div className="flex flex-wrap gap-1.5">
@@ -381,15 +433,7 @@ export default function GridPage() {
           description={filtersActive ? "Try clearing the filters or searching for something else." : "Members appear here after signups or CSV imports."}
           action={
             filtersActive ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setQ("");
-                  setSourceId("");
-                  setCity("");
-                  setStatus("");
-                }}
-              >
+              <Button variant="secondary" onClick={clearFilters}>
                 Clear filters
               </Button>
             ) : null
