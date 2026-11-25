@@ -75,8 +75,8 @@ For EVERY screen confirm empty, loading and error states:
 - [x] Meta research paragraph: real lead ads send a webhook with a lead ID, then you fetch the form fields from Meta's Graph API; this mock accepts the fields directly
 
 ## 8. /design folder (by end of Day 2)
-- [x] User flow + DB diagram (PNG/SVG)  - [ ] Add "Create survey" screen only if built, otherwise remove from flow BEFORE Day 2
-- [ ] After Day 2: never edit; add new files (e.g. `design/03_changes_day5.md`)
+- [x] User flow + DB diagram (PNG/SVG)  - [x] Add "Create survey" screen only if built, otherwise remove from flow BEFORE Day 2 (built; noted in `03_changes_day5.md` §1 since `01` is frozen)
+- [x] After Day 2: never edit; add new files (e.g. `design/03_changes_day5.md`)
 
 ## 9. Git - 20% (do not push once at the end)
 Re-create history in small commits over the days, for example:
