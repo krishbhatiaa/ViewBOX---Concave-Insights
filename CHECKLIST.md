@@ -42,7 +42,7 @@ For EVERY screen confirm empty, loading and error states:
 - [x] Split `main.py` into `routers/` (auth, member, admin, importer, meta), `schemas.py`, `services/` (grid, importer, referral), `deps.py`; `main.py` is a thin app factory
 - [x] Frontend folders: components, pages, hooks, api (or split JS modules)
 - [x] Pydantic validation on every endpoint, incl. query params (`Literal` statuses, `max_length` on search)
-- [x] pytest suite (29): eligibility outcomes + cool-off, HMAC verify/forgery, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation
+- [x] pytest suite (37): eligibility outcomes + cool-off + quota + past deadline + age bounds, HMAC verify/forgery, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation
 - [x] Logging for skipped rows / errors; friendly message to the user
 - [x] Pin versions in `requirements.txt`; seed script idempotent (drop + recreate)
 - [x] Remove dead code (pyflakes clean), short docstrings where the logic is non-obvious
@@ -95,6 +95,6 @@ Re-create history in small commits over the days, for example:
 - [ ] Fresh `git clone` into a new folder, follow README exactly, timed < 5 min
 - [ ] Demo data present on first run; demo logins work
 - [ ] Test matrix: age 17 / 40, wrong city (strict vs flexible), full quota, past deadline, cool-off date, duplicate phone, forged link, bad CSV row, duplicate Meta lead
-- [ ] No secrets, `.env`, `.db` or `__pycache__` in repo
+- [x] No secrets, `.env`, `.db` or `__pycache__` in repo
 - [ ] Day 2 email: repo link + /design done  - [ ] Day 7 email: same repo link + video link
 - [ ] To miloni@concaveinsights.com, CC genis@concaveinsights.com; Subject: `Technical Assessment - <Your Name> - ViewBox Panel System`

@@ -63,7 +63,7 @@ Production-style run: `cd frontend && npm run build`, then start uvicorn — the
 | Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | React + Vite + Tailwind frontend | Done |
-| Automated tests (pytest API suite, 29 tests: eligibility outcomes + cool-off, HMAC link forgery, OTP + per-IP rate limits, messy import, Meta dedupe + webhook signature, admin-auth loop over every `/api/admin` route) | Done — `cd backend && python -m pytest` |
+| Automated tests (pytest API suite, 37 tests: eligibility outcomes + cool-off + quota + past deadline + age bounds, HMAC link forgery, OTP + per-IP rate limits, messy import, Meta dedupe + webhook signature, admin-auth loop over every `/api/admin` route) | Done — `cd backend && python -m pytest` |
 | Meta leads admin view + per-campaign breakdown | Done - Admin ? Meta leads; `GET /api/admin/meta-leads` + `/stats` |
 | Tier 3 "wow" feature | Done - (b) LLM rule suggestion: Admin ? Surveys ? "Suggest rules" (LLM when `LLM_API_KEY` set, offline keyword fallback otherwise); suggestions are editable and only saved via Create survey |
 

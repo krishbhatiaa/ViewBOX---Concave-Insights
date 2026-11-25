@@ -117,6 +117,57 @@ def test_cool_off_blocks_and_shows_date(client, admin):
     assert "can join again" in z["reason"]
 
 
+def test_full_quota_rejects_new_members(client, admin):
+    sid = make_survey(client, admin, "Quota Full Survey", [
+        {"rule_type": "age", "value": "18-60", "strict_or_flexible": "strict"},
+    ], amount=100, quota=1)
+    phone = "9810000101"
+    signup_member(client, phone, name="Quota Person", dob="1995-01-01", city="Mumbai")
+    from app.models import Completion, Member, SessionLocal
+    db = SessionLocal()
+    m = db.query(Member).filter_by(phone=phone).first()
+    db.add(Completion(member_id=m.id, survey_id=sid, quality_check_passed=True))
+    db.commit(); db.close()
+    other = "9810000102"
+    signup_member(client, other, name="Late Person", dob="1995-01-01", city="Mumbai")
+    mh = member_token(client, other)
+    z = next(x for x in client.get("/api/surveys", headers=mh).json() if x["id"] == sid)
+    assert z["result"] == "Rejected"
+    assert "quota" in z["reason"].lower()
+
+
+def test_past_deadline_rejects(client, admin):
+    sid = make_survey(client, admin, "Closed Survey", [
+        {"rule_type": "age", "value": "18-60", "strict_or_flexible": "strict"},
+    ], amount=100, deadline="2020-01-01T00:00:00")
+    phone = "9810000103"
+    signup_member(client, phone, name="Late Visitor", dob="1995-01-01", city="Mumbai")
+    mh = member_token(client, phone)
+    z = next(x for x in client.get("/api/surveys", headers=mh).json() if x["id"] == sid)
+    assert z["result"] == "Rejected"
+    assert "closed on" in z["reason"]
+
+
+def test_age_bounds_17_35_40(client, admin):
+    sid = _zomato(client, admin)  # age rule 18-35, strict
+    # age 17 -> rejected (underage)
+    signup_member(client, "9810000104", name="Minor Bound", dob="2009-06-01", city="Mumbai")
+    z = next(x for x in client.get("/api/surveys", headers=member_token(client, "9810000104")).json()
+             if x["id"] == sid)
+    assert z["result"] == "Rejected" and "age" in z["reason"]
+    # age 35 (upper bound, inclusive) -> passes the age rule
+    signup_member(client, "9810000105", name="Upper Bound", dob="1991-06-01", city="Mumbai")
+    z = next(x for x in client.get("/api/surveys", headers=member_token(client, "9810000105")).json()
+             if x["id"] == sid)
+    assert z["result"] == "Approved", z
+    # age 40 -> rejected (above range)
+    signup_member(client, "9810000106", name="Over Bound", dob="1986-01-01", city="Mumbai")
+    z = next(x for x in client.get("/api/surveys", headers=member_token(client, "9810000106")).json()
+             if x["id"] == sid)
+    assert z["result"] == "Rejected"
+    assert "age" in z["reason"] and "18 to 35" in z["reason"]
+
+
 def test_admin_manual_override(client, admin):
     sid = _zomato(client, admin)
     phone = "9810000011"
