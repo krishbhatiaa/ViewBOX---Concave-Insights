@@ -149,7 +149,7 @@ export default function SourcesPage() {
                       <CopyButton
                         value={s.link}
                         label="Copy"
-                        className="!min-h-9 !px-2.5 !text-xs"
+                        className="min-h-11 !px-2.5 !text-xs"
                         onCopied={() => toast("Link copied to clipboard")}
                       />
                     </Td>

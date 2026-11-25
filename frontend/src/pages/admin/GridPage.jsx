@@ -253,23 +253,10 @@ export default function GridPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Members"
-        description="Search, filter, change referral stages, and export exactly what you see."
-        actions={
-          <>
-            <Button variant="secondary" onClick={() => exportView("csv")} loading={exporting} disabled={!rows?.length}>
-              Export CSV
-            </Button>
-            <Button variant="secondary" onClick={() => exportView("xlsx")} loading={exporting} disabled={!rows?.length}>
-              Export Excel
-            </Button>
-          </>
-        }
-      />
+      <PageHeader title="Members" description="Search, filter, change referral stages, and export exactly what you see." />
 
       {/* sticky filter bar */}
-      <div className="sticky top-[57px] z-20 -mx-4 mb-4 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:mx-0 sm:rounded-xl sm:border sm:px-4">
+      <div className="sticky top-[var(--admin-header-h)] z-20 -mx-4 mb-4 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:mx-0 sm:rounded-xl sm:border sm:px-4">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Field label="Search" id="grid-q">
             <Input
@@ -332,11 +319,22 @@ export default function GridPage() {
         {filtersActive && (
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-slate-500">Filters active</span>
-            <Button variant="ghost" className="!min-h-8 !px-2 !text-xs" onClick={clearFilters}>
+            <Button variant="ghost" className="min-h-11 !px-2 !text-xs" onClick={clearFilters}>
               Clear filters
             </Button>
           </div>
         )}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Export current view
+          </span>
+          <Button variant="secondary" onClick={() => exportView("csv")} loading={exporting} disabled={!rows?.length}>
+            CSV
+          </Button>
+          <Button variant="secondary" onClick={() => exportView("xlsx")} loading={exporting} disabled={!rows?.length}>
+            Excel
+          </Button>
+        </div>
       </div>
 
       {error && !rows ? (
@@ -401,24 +399,24 @@ export default function GridPage() {
                         {m.referral_id && m.stage !== "Completed" && (
                           <>
                             {m.stage !== "Fit" && (
-                              <Button variant="secondary" className="!min-h-9 !px-2.5 !text-xs" onClick={() => markFit(m)}>
+                              <Button variant="secondary" className="min-h-11 !px-2.5 !text-xs" onClick={() => markFit(m)}>
                                 Fit
                               </Button>
                             )}
-                            <Button variant="secondary" className="!min-h-9 !px-2.5 !text-xs" onClick={() => openDialog(m, "Completed")}>
+                            <Button variant="secondary" className="min-h-11 !px-2.5 !text-xs" onClick={() => openDialog(m, "Completed")}>
                               Completed
                             </Button>
                             {m.stage !== "Failed" && (
-                              <Button variant="secondary" className="!min-h-9 !px-2.5 !text-xs" onClick={() => openDialog(m, "Failed")}>
+                              <Button variant="secondary" className="min-h-11 !px-2.5 !text-xs" onClick={() => openDialog(m, "Failed")}>
                                 Fail
                               </Button>
                             )}
                           </>
                         )}
-                        <Button variant="ghost" className="!min-h-9 !px-2 !text-xs" onClick={() => openOverride(m)}>
+                        <Button variant="ghost" className="min-h-11 !px-2 !text-xs" onClick={() => openOverride(m)}>
                           Override…
                         </Button>
-                        {!m.referral_id && <span className="text-xs text-slate-400">No referral row</span>}
+                        {!m.referral_id && <span className="text-xs text-slate-500 dark:text-slate-400">No referral row</span>}
                       </div>
                     </Td>
                   </tr>

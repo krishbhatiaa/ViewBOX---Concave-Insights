@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { tokens } from "../../api.js";
 import { Button } from "../../components/ui.jsx";
@@ -21,13 +22,23 @@ const linkCls = ({ isActive }) =>
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const headerRef = useRef(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const sync = () => document.documentElement.style.setProperty("--admin-header-h", `${el.offsetHeight}px`);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   if (!tokens.get(false)) {
     navigate("/admin", { replace: true });
     return null;
   }
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
+      <header ref={headerRef} className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-2">
           <span className="text-base font-bold tracking-tight">
             ViewBox <span className="text-indigo-600 dark:text-indigo-400">Admin</span>
@@ -42,7 +53,7 @@ export default function AdminLayout() {
           <div className="order-2 sm:order-3">
             <Button
               variant="ghost"
-              className="!min-h-9 !px-2 !text-xs"
+              className="min-h-11 !px-2 !text-xs"
               onClick={() => {
                 tokens.set(false, null);
                 navigate("/admin", { replace: true });

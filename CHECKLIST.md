@@ -27,14 +27,14 @@ Scoring: Thinking 30% - UI/UX 30% - Code 20% - Git and Docs 20%. A flawless core
 
 ## 2. UI/UX - 30% of score (P0)
 For EVERY screen confirm empty, loading and error states: 
-- [ ] Phone/OTP  - [ ] Profile  - [ ] Home/surveys  - [ ] My referrals  - [ ] Admin login  - [ ] Grid  - [ ] Sources  - [ ] Source stats  - [ ] Import  - [ ] Survey create
-- [ ] Test at 360px wide phone and desktop; no sideways page scroll (tables scroll inside their box)
-- [ ] Touch targets >= 44px, visible focus, labels on every input, contrast checked (light + dark)
-- [ ] Inline field errors in plain words (no raw JSON / stack traces)
-- [ ] Success feedback (toast / banner) after add source, stage change, import
-- [ ] Copy-to-clipboard button for referral link and source links
-- [ ] Sticky filter bar + obvious "Export current view" button on admin grid
-- [ ] Consistent spacing/type/colour tokens (one design system)
+- [x] Phone/OTP  - [x] Profile  - [x] Home/surveys  - [x] My referrals  - [x] Admin login  - [x] Grid  - [x] Sources  - [x] Source stats  - [x] Import  - [x] Survey create
+- [x] Test at 360px wide phone and desktop; no sideways page scroll (tables scroll inside their box)
+- [x] Touch targets >= 44px, visible focus, labels on every input, contrast checked (light + dark)
+- [x] Inline field errors in plain words (no raw JSON / stack traces)
+- [x] Success feedback (toast / banner) after add source, stage change, import
+- [x] Copy-to-clipboard button for referral link and source links
+- [x] Sticky filter bar + obvious "Export current view" button on admin grid
+- [x] Consistent spacing/type/colour tokens (one design system)
 - [x] Replace `prompt()` / `alert()` for Fail reason with a small modal
 - [x] Optional: port to React + Vite + Tailwind ONLY if core is finished (risk vs reward: vanilla is acceptable)
 

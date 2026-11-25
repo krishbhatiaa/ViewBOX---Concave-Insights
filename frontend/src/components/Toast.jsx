@@ -42,7 +42,7 @@ export function ToastProvider({ children }) {
               type="button"
               onClick={() => dismiss(t.id)}
               aria-label="Dismiss notification"
-              className="rounded p-1 opacity-60 hover:opacity-100"
+              className="-m-1 flex h-11 w-11 items-center justify-center rounded-lg opacity-70 hover:opacity-100"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6 6 18M6 6l12 12" />

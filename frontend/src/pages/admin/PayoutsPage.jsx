@@ -113,7 +113,7 @@ export default function PayoutsPage() {
                           {p.status === "Pending" && (
                             <Button
                               variant="secondary"
-                              className="!min-h-9 !px-2.5 !text-xs"
+                              className="min-h-11 !px-2.5 !text-xs"
                               loading={busyId === p.id}
                               onClick={() => setStatus(p.id, "Approved")}
                             >
@@ -122,14 +122,14 @@ export default function PayoutsPage() {
                           )}
                           {p.status === "Approved" && (
                             <Button
-                              className="!min-h-9 !px-2.5 !text-xs"
+                              className="min-h-11 !px-2.5 !text-xs"
                               loading={busyId === p.id}
                               onClick={() => setStatus(p.id, "Paid")}
                             >
                               Mark paid
                             </Button>
                           )}
-                          {p.status === "Paid" && <span className="text-xs text-slate-400">Settled</span>}
+                          {p.status === "Paid" && <span className="text-xs text-slate-500 dark:text-slate-400">Settled</span>}
                         </div>
                       </Td>
                     </tr>

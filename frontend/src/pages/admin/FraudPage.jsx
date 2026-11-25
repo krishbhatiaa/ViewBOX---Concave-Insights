@@ -170,7 +170,7 @@ export default function FraudPage() {
                         <div className="flex flex-wrap gap-1.5">
                           <Button
                             variant="secondary"
-                            className="!min-h-9 !px-2.5 !text-xs"
+                            className="min-h-11 !px-2.5 !text-xs"
                             disabled={acting === f.id}
                             onClick={() => review(f, "Cleared")}
                           >
@@ -178,7 +178,7 @@ export default function FraudPage() {
                           </Button>
                           <Button
                             variant="danger"
-                            className="!min-h-9 !px-2.5 !text-xs"
+                            className="min-h-11 !px-2.5 !text-xs"
                             disabled={acting === f.id}
                             onClick={() => review(f, "Confirmed")}
                           >
@@ -186,7 +186,7 @@ export default function FraudPage() {
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           {f.reviewed_by ? `by ${f.reviewed_by}` : "reviewed"}
                         </span>
                       )}

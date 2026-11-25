@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api, tokens } from "../../api.js";
-import { Button, Card, Field, InlineError, Input, PageHeader, Select } from "../../components/ui.jsx";
+import { Button, Card, Field, InlineError, Input, PageHeader, Select, Skeleton } from "../../components/ui.jsx";
 import { clearLinkParams, clearPending, getLinkParams, getPending } from "../../lib/auth.js";
 import { GENDER_OPTIONS, INCOME_OPTIONS } from "../../lib/stages.js";
 
@@ -24,6 +24,7 @@ export default function ProfilePage() {
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resolveLoading, setResolveLoading] = useState(true);
+  const [resolveError, setResolveError] = useState("");
 
   useEffect(() => {
     if (!pending) return;
@@ -40,8 +41,16 @@ export default function ProfilePage() {
           const list = await api("/api/sources/public");
           if (alive) setSources(list);
         }
-      } catch {
-        if (alive) setResolve({ source: null, referrer: null, needs_fallback: true });
+      } catch (err) {
+        if (!alive) return;
+        setResolve({ source: null, referrer: null, needs_fallback: true });
+        setResolveError(err.message || "We could not check your invite link — you can still continue below.");
+        try {
+          const list = await api("/api/sources/public");
+          if (alive) setSources(list);
+        } catch {
+          /* fallback list is optional; the form still works */
+        }
       } finally {
         if (alive) setResolveLoading(false);
       }
@@ -117,7 +126,14 @@ export default function ProfilePage() {
       />
       <Card>
         {resolveLoading ? (
-          <p className="text-sm text-slate-500">Checking your link…</p>
+          <div className="mb-3 space-y-2" role="status" aria-label="Checking your link">
+            <Skeleton className="h-8 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        ) : resolveError ? (
+          <div className="mb-3">
+            <InlineError message={resolveError} />
+          </div>
         ) : resolve.source ? (
           <p className="mb-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
             You were invited via <b>{resolve.source}</b>

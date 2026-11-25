@@ -30,7 +30,7 @@ export default function MemberLayout() {
           </nav>
           <Button
             variant="ghost"
-            className="!min-h-9 !px-2 !text-xs"
+            className="min-h-11 !px-2 !text-xs"
             onClick={() => {
               tokens.set(true, null);
               navigate("/login", { replace: true });

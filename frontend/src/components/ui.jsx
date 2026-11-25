@@ -1,12 +1,18 @@
-import { useState } from "react";
+import { forwardRef, useState } from "react";
 
-const TONES = {
+export const TONES = {
   emerald: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
   rose: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
   amber: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300",
   sky: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
   slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   indigo: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300",
+};
+
+export const BAR_TONES = {
+  sky: "bg-sky-500",
+  amber: "bg-amber-500",
+  emerald: "bg-emerald-500",
 };
 
 export function Card({ className = "", children, ...rest }) {
@@ -49,7 +55,7 @@ export function Button({ variant = "primary", className = "", type = "button", l
 }
 
 const inputCls =
-  "min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-indigo-900";
+  "min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:ring-indigo-900";
 
 export function Field({ label, error, hint, required, children, id }) {
   return (
@@ -69,9 +75,9 @@ export function Field({ label, error, hint, required, children, id }) {
   );
 }
 
-export function Input({ error, className = "", ...rest }) {
-  return <input aria-invalid={!!error || undefined} className={`${inputCls} ${error ? "border-rose-400" : ""} ${className}`} {...rest} />;
-}
+export const Input = forwardRef(function Input({ error, className = "", ...rest }, ref) {
+  return <input ref={ref} aria-invalid={!!error || undefined} className={`${inputCls} ${error ? "border-rose-400" : ""} ${className}`} {...rest} />;
+});
 
 export function Select({ error, className = "", children, ...rest }) {
   return (
@@ -231,6 +237,7 @@ export function StatCard({ label, value, tone = "slate" }) {
     rose: "border-rose-200 dark:border-rose-900",
     slate: "border-slate-200 dark:border-slate-800",
     indigo: "border-indigo-200 dark:border-indigo-900",
+    sky: "border-sky-200 dark:border-sky-900",
   };
   return (
     <Card className={`!p-4 ${colors[tone]}`}>

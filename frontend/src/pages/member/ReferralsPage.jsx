@@ -56,7 +56,7 @@ export default function ReferralsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">Your personal link</h2>
-            <p className="text-sm text-slate-500">Share it anywhere — the bonus lands when a friend completes a survey.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Share it anywhere — the bonus lands when a friend completes a survey.</p>
           </div>
           <CopyButton value={link} label="Copy link" />
         </div>
@@ -73,7 +73,7 @@ export default function ReferralsPage() {
         <Card className="!p-0">
           <div className="flex items-center justify-between px-4 pt-4 sm:px-5">
             <h2 className="text-base font-semibold">Friends invited</h2>
-            <span className="text-sm text-slate-500">{rows.length} total</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">{rows.length} total</span>
           </div>
           <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
             <Table>
@@ -99,7 +99,7 @@ export default function ReferralsPage() {
                       {r.bonus ? (
                         <span>
                           ₹{r.bonus.amount} · <StageTag stage={r.bonus.status} />{" "}
-                          <span className="text-xs text-slate-500">{PAYOUT_LABEL[r.bonus.status] || r.bonus.status}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400">{PAYOUT_LABEL[r.bonus.status] || r.bonus.status}</span>
                         </span>
                       ) : r.stage === "Completed" ? (
                         "—"
@@ -107,8 +107,8 @@ export default function ReferralsPage() {
                         "—"
                       )}
                     </Td>
-                    <Td className="max-w-48 whitespace-normal text-slate-500">{r.failure_reason || STAGE_EXPLANATION[r.stage] || ""}</Td>
-                    <Td className="text-slate-500">{r.updated_at.slice(0, 10)}</Td>
+                    <Td className="max-w-48 whitespace-normal text-slate-500 dark:text-slate-400">{r.failure_reason || STAGE_EXPLANATION[r.stage] || ""}</Td>
+                    <Td className="text-slate-500 dark:text-slate-400">{r.updated_at.slice(0, 10)}</Td>
                   </tr>
                 ))}
               </tbody>

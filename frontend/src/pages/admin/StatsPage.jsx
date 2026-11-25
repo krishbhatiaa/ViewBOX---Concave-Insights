@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
 import {
+  BAR_TONES,
   Card,
   EmptyState,
   ErrorState,
   LoadingCard,
   PageHeader,
+  StatCard,
   Table,
   Td,
   Th,
@@ -64,9 +66,9 @@ export default function StatsPage() {
       ) : rows?.length ? (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
-            <StatBox label="Total sign-ups" value={totals.signups} />
-            <StatBox label="Total Fit" value={totals.fit} />
-            <StatBox label="Total Completed" value={totals.completed} />
+            <StatCard label="Total sign-ups" value={totals.signups} tone="sky" />
+            <StatCard label="Total Fit" value={totals.fit} tone="amber" />
+            <StatCard label="Total Completed" value={totals.completed} tone="emerald" />
           </div>
           <Card className="!p-0">
             <div className="px-4 pt-4 sm:px-5">
@@ -88,15 +90,15 @@ export default function StatsPage() {
                   {rows.map((r) => (
                     <tr key={r.source}>
                       <Td className="font-medium">{r.source}</Td>
-                      <Td className="text-slate-500">{r.type}</Td>
+                      <Td className="text-slate-500 dark:text-slate-400">{r.type}</Td>
                       <Td>
-                        <FunnelBar value={r.signups} max={max} color="bg-sky-500" />
+                        <FunnelBar value={r.signups} max={max} color={BAR_TONES.sky} />
                       </Td>
                       <Td>
-                        <FunnelBar value={r.fit} max={max} color="bg-amber-500" />
+                        <FunnelBar value={r.fit} max={max} color={BAR_TONES.amber} />
                       </Td>
                       <Td>
-                        <FunnelBar value={r.completed} max={max} color="bg-emerald-500" />
+                        <FunnelBar value={r.completed} max={max} color={BAR_TONES.emerald} />
                       </Td>
                       <Td className="tabular-nums">
                         {r.signups ? Math.round((r.completed / r.signups) * 100) : 0}%
@@ -112,14 +114,5 @@ export default function StatsPage() {
         <EmptyState title="No data yet" description="Source stats appear after the first signups." />
       )}
     </div>
-  );
-}
-
-function StatBox({ label, value }) {
-  return (
-    <Card className="!p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-3xl font-bold">{value}</p>
-    </Card>
   );
 }
