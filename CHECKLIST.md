@@ -36,11 +36,11 @@ For EVERY screen confirm empty, loading and error states:
 - [ ] Sticky filter bar + obvious "Export current view" button on admin grid
 - [ ] Consistent spacing/type/colour tokens (one design system)
 - [x] Replace `prompt()` / `alert()` for Fail reason with a small modal
-- [ ] Optional: port to React + Vite + Tailwind ONLY if core is finished (risk vs reward: vanilla is acceptable)
+- [x] Optional: port to React + Vite + Tailwind ONLY if core is finished (risk vs reward: vanilla is acceptable)
 
 ## 3. Code quality - 20% (P0/P1)
 - [x] Split `main.py` into `routers/` (auth, member, admin, importer, meta), `schemas.py`, `services/` (grid, importer, referral), `deps.py`; `main.py` is a thin app factory
-- [ ] Frontend folders: components, pages, hooks, api (or split JS modules)
+- [x] Frontend folders: components, pages, hooks, api (or split JS modules)
 - [x] Pydantic validation on every endpoint, incl. query params (`Literal` statuses, `max_length` on search)
 - [x] pytest suite (29): eligibility outcomes + cool-off, HMAC verify/forgery, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation
 - [x] Logging for skipped rows / errors; friendly message to the user
