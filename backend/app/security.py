@@ -57,3 +57,25 @@ def check_otp(phone: str, otp: str):
 
 def mask(phone: str) -> str:
     return phone[:2] + "X" * 6 + phone[-2:] if phone and len(phone) >= 4 else "XXXX"
+
+_hits: dict = {}
+
+def reset_rate_limits():
+    """Clear the per-IP counters (used by tests; a restart clears them in production)."""
+    _hits.clear()
+
+def enforce_ip_limit(request, bucket: str, limit: int | None = None, window: int = 3600):
+    """Sliding-window rate limit per IP for a bucket such as 'otp' or 'signup'.
+
+    Limit comes from SIGNUP_IP_LIMIT (default 60/hour per bucket). Raises 429.
+    In-memory like the OTP limit; Redis behind a proxy in production.
+    """
+    limit = int(os.getenv("SIGNUP_IP_LIMIT", "60")) if limit is None else limit
+    ip = ((request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+          or (request.client.host if request.client else "unknown"))
+    key = f"{bucket}:{ip}"
+    t = time.time()
+    hits = [x for x in _hits.get(key, []) if t - x < window]
+    if len(hits) >= limit:
+        raise HTTPException(429, "Too many requests from this network. Please try again in an hour.")
+    _hits[key] = hits + [t]

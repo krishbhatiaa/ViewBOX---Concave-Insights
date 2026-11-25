@@ -39,27 +39,27 @@ For EVERY screen confirm empty, loading and error states:
 - [ ] Optional: port to React + Vite + Tailwind ONLY if core is finished (risk vs reward: vanilla is acceptable)
 
 ## 3. Code quality - 20% (P0/P1)
-- [ ] Split `main.py` into `routers/` (auth, member, admin, import, meta), `schemas/`, `services/` (eligibility, import, referral), `utils/`
+- [x] Split `main.py` into `routers/` (auth, member, admin, importer, meta), `schemas.py`, `services/` (grid, importer, referral), `deps.py`; `main.py` is a thin app factory
 - [ ] Frontend folders: components, pages, hooks, api (or split JS modules)
-- [ ] Pydantic validation on every endpoint (check each one, incl. query params)
-- [ ] pytest suite: eligibility (each outcome + cool-off), HMAC verify/forgery, OTP rate limit, import messy rows, Meta dedupe/invalid, auth required on admin routes
-- [ ] Logging for skipped rows / errors; friendly message to the user
-- [ ] Pin versions in `requirements.txt`; seed script idempotent
-- [ ] Remove dead code, add short docstrings where the logic is non-obvious
-- [ ] `.env.example` complete; confirm no secrets or `.db` committed
+- [x] Pydantic validation on every endpoint, incl. query params (`Literal` statuses, `max_length` on search)
+- [x] pytest suite (29): eligibility outcomes + cool-off, HMAC verify/forgery, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation
+- [x] Logging for skipped rows / errors; friendly message to the user
+- [x] Pin versions in `requirements.txt`; seed script idempotent (drop + recreate)
+- [x] Remove dead code (pyflakes clean), short docstrings where the logic is non-obvious
+- [x] `.env.example` complete; confirm no secrets or `.db` committed
 
 ## 4. Security posture (implement + document; never say "unhackable")
 - [x] SQLAlchemy parameterised queries, Pydantic validation, HMAC links, OTP limit, admin auth, CORS restricted, phone masking
-- [ ] Meta endpoint: verify a shared token / `X-Hub-Signature-256` header
-- [ ] Rate limit signup/IP (needed for fraud signal too)
-- [ ] Check admin routes all require auth (write a test that loops all `/api/admin/*`)
-- [ ] README: production list - Postgres, Redis (sessions/OTP), HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS
+- [x] Meta endpoint: verify a shared token / `X-Hub-Signature-256` header (HMAC of raw body, when `META_WEBHOOK_SECRET` is set)
+- [x] Rate limit signup/IP (`SIGNUP_IP_LIMIT`, default 60/hour per bucket)
+- [x] Check admin routes all require auth (test loops all `/api/admin/*`)
+- [x] README: production list - Postgres, Redis (sessions/OTP), HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS
 
 ## 5. Bonus Tier 2 (only after sections 1-4) - suggested order
-1. [ ] Import preview + per-row error report (preview BEFORE saving)
-2. [ ] Admin manual override Waitlisted -> Approved with reason (endpoint + UI + logged)
-3. [ ] Fraud flags + review queue: same phone twice, self-referral, referral ring A<->B, many signups from one IP; never auto-delete
-4. [ ] Payout ledger: amount per completed survey + successful referral; ops approves each before Paid
+1. [x] Import preview + per-row error report (preview BEFORE saving)
+2. [x] Admin manual override Waitlisted -> Approved with reason (endpoint + UI + logged)
+3. [x] Fraud flags + review queue: same phone twice, self-referral, referral ring A<->B, many signups from one IP; never auto-delete
+4. [x] Payout ledger: amount per completed survey + successful referral; ops approves each before Paid
 5. [ ] Meta leads admin view + per-campaign breakdown
 
 ## 6. Tier 3 - pick exactly ONE
@@ -67,12 +67,12 @@ For EVERY screen confirm empty, loading and error states:
 - Suggested: (b), it fits the "deterministic and auditable" rule best
 
 ## 7. README - exact 9 sections
-- [ ] 1 Overview (3-4 lines)  - [ ] 2 Tech stack  - [ ] 3 Setup (test it on a clean machine, < 5 min)  - [ ] 4 Demo logins + test data
-- [ ] 5 Features marked Done / Partly done / Not done (be honest; re-check at the end)
-- [ ] 6 Database design + link to /design  - [ ] 7 Endpoints each with method, URL, purpose, sample request + response
-- [ ] 8 Decisions: source conflict, first vs last touch, payment gateway plan (Razorpay: approve -> API -> capture -> webhook -> Paid; failures via retries + polling) + security posture
-- [ ] 9 Known issues + Tier 4 roadmap (ML analytics/forecasting, Postgres/Redis, production payments, LLM factors, audit logs, RBAC, security headers)
-- [ ] Meta research paragraph: real lead ads send a webhook with a lead ID, then you fetch the form fields from Meta's Graph API; this mock accepts the fields directly
+- [x] 1 Overview (3-4 lines)  - [x] 2 Tech stack  - [ ] 3 Setup (test it on a clean machine, < 5 min)  - [x] 4 Demo logins + test data
+- [x] 5 Features marked Done / Partly done / Not done (be honest; re-check at the end)
+- [x] 6 Database design + link to /design  - [x] 7 Endpoints each with method, URL, purpose, sample request + response
+- [x] 8 Decisions: source conflict, first vs last touch, payment gateway plan (Razorpay: approve -> API -> capture -> webhook -> Paid; failures via retries + polling) + security posture
+- [x] 9 Known issues + Tier 4 roadmap (ML analytics/forecasting, Postgres/Redis, production payments, LLM factors, audit logs, RBAC, security headers)
+- [x] Meta research paragraph: real lead ads send a webhook with a lead ID, then you fetch the form fields from Meta's Graph API; this mock accepts the fields directly
 
 ## 8. /design folder (by end of Day 2)
 - [x] User flow + DB diagram (PNG/SVG)  - [ ] Add "Create survey" screen only if built, otherwise remove from flow BEFORE Day 2

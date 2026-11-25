@@ -6,6 +6,7 @@ TEST_DB = os.path.join(tempfile.gettempdir(), "viewbox_pytest.db")
 if os.path.exists(TEST_DB):
     os.remove(TEST_DB)
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
+os.environ.setdefault("SIGNUP_IP_LIMIT", "1000")  # the suite signs up a lot from one IP
 
 import pytest
 from fastapi.testclient import TestClient

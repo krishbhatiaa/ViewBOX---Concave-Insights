@@ -456,6 +456,135 @@ def test_referral_ring_scan(client, admin):
     assert any(x["phone"] == "9810000042" for x in flagged)
 
 
+# ---------- security: signed links, rate limits, webhook, auth coverage ----------
+
+def test_signed_links_reject_forged_tokens(client, admin):
+    """HMAC links: tampered, junk and wrong-kind tokens are ignored (signup still works)."""
+    from app import security as sec
+    token = sec.sign_link("src", "website")
+    assert sec.verify_link("src", token) == "website"
+    assert sec.verify_link("src", "website.deadbeefdeadbeefdeadbeef") is None  # tampered signature
+    assert sec.verify_link("src", sec.sign_link("ref", "1")) is None           # signed for another kind
+    assert sec.verify_link("src", "nodothere") is None                          # malformed
+    assert sec.verify_link("src", None) is None
+    # end-to-end: a forged source link signs the member up but credits nobody
+    s = client.post("/api/admin/sources", json={"name": "Forged Link Channel", "type": "whatsapp"}, headers=admin)
+    good = s.json()["link"].split("src=")[1]
+    h = signup_member(client, "9810000071", name="Forged Link Person", src="evil-" + good)
+    assert h.status_code == 200 and any("could not be verified" in n for n in h.json()["notes"])
+    rows = client.get("/api/admin/members", params={"q": "Forged Link Person"}, headers=admin).json()
+    assert rows and rows[0]["source"] == "Unknown"
+    # a valid token still attributes correctly
+    h = signup_member(client, "9810000072", name="Valid Link Person", src=good)
+    assert h.status_code == 200 and h.json()["notes"] == []
+    rows = client.get("/api/admin/members", params={"q": "Valid Link Person"}, headers=admin).json()
+    assert rows and rows[0]["source"] == "Forged Link Channel"
+    # a referral token passed as ?src= (wrong kind) is rejected
+    h = signup_member(client, "9810000073", name="Wrong Kind Person", src=sec.sign_link("ref", "1"))
+    assert h.json()["notes"]
+
+
+def test_otp_rate_limit_five_attempts(client):
+    phone = "9810000081"
+    assert signup_member(client, phone, name="Rate Limit Person").status_code == 200
+    client.post("/api/otp/request", json={"phone": phone})  # fresh OTP on file
+    codes = [client.post("/api/login", json={"phone": phone, "otp": "000000"}).status_code for _ in range(8)]
+    assert codes[0] == 400 and 429 in codes  # wrong OTPs are 400, then the lockout kicks in
+
+
+def test_signup_ip_rate_limit(client):
+    """Per-IP sliding window for signup/OTP (SIGNUP_IP_LIMIT, default 60/hour)."""
+    import os
+    from app import security as sec
+    prev = os.environ.get("SIGNUP_IP_LIMIT")
+    os.environ["SIGNUP_IP_LIMIT"] = "3"
+    sec.reset_rate_limits()
+    try:
+        codes = [client.post("/api/otp/request", json={"phone": f"987000000{i}"}).status_code for i in range(4)]
+        assert codes == [200, 200, 200, 429]
+        r = client.post("/api/otp/request", json={"phone": "9870000009"})
+        assert r.status_code == 429 and "network" in r.json()["detail"].lower()
+    finally:
+        os.environ["SIGNUP_IP_LIMIT"] = prev if prev is not None else "1000"
+        sec.reset_rate_limits()
+
+
+def test_meta_webhook_signature_when_secret_set(client):
+    """With META_WEBHOOK_SECRET set, unsigned or badly signed leads are refused."""
+    import hashlib
+    import hmac as std_hmac
+    import json as std_json
+    import os
+    os.environ["META_WEBHOOK_SECRET"] = "meta-test-secret"
+    try:
+        lead = {"lead_id": "L-SIG-1", "campaign_id": "C-SIG",
+                "fields": {"name": "Sig Person", "phone": "+919811122233", "city": "Pune"}}
+        assert client.post("/api/meta/lead", json=lead).status_code == 401  # unsigned
+        bad = "sha256=" + "0" * 64
+        assert client.post("/api/meta/lead", json=lead, headers={"X-Hub-Signature-256": bad}).status_code == 401
+        raw = std_json.dumps(lead).encode()
+        sig = "sha256=" + std_hmac.new(b"meta-test-secret", raw, hashlib.sha256).hexdigest()
+        r = client.post("/api/meta/lead", content=raw,
+                        headers={"Content-Type": "application/json", "X-Hub-Signature-256": sig})
+        assert r.status_code == 200 and r.json()["status"] == "created"
+        # a shared token header is accepted too (the brief allows either)
+        lead2 = {"lead_id": "L-SIG-2", "fields": {"name": "Token Person", "phone": "+919811122244", "city": "Pune"}}
+        assert client.post("/api/meta/lead", json=lead2, headers={"X-Webhook-Token": "meta-test-secret"}).status_code == 200
+        # dedupe still works for authenticated repeats
+        r = client.post("/api/meta/lead", content=raw,
+                        headers={"Content-Type": "application/json", "X-Hub-Signature-256": sig})
+        assert r.json()["status"] == "duplicate"
+        # the raw lead is kept for review when invalid
+        bad_lead = {"lead_id": "L-SIG-3", "fields": {"name": "X", "phone": "123"}}
+        raw_bad = std_json.dumps(bad_lead).encode()
+        sig_bad = "sha256=" + std_hmac.new(b"meta-test-secret", raw_bad, hashlib.sha256).hexdigest()
+        assert client.post("/api/meta/lead", content=raw_bad,
+                           headers={"Content-Type": "application/json", "X-Hub-Signature-256": sig_bad}).status_code == 422
+    finally:
+        os.environ.pop("META_WEBHOOK_SECRET", None)
+
+
+def test_every_admin_route_requires_auth(client):
+    """Loop over every /api/admin route: without a token it must answer 401."""
+    import re
+    from fastapi.routing import APIRoute
+    from app.main import app
+
+    def iter_routes(routes):
+        for r in routes:
+            if type(r).__name__ == "_IncludedRouter":  # FastAPI 0.165 lazy include wrapper
+                yield from iter_routes(getattr(r, "original_router").routes)
+            else:
+                yield r
+
+    checked = 0
+    for route in iter_routes(app.routes):
+        if not isinstance(route, APIRoute):
+            continue
+        path = route.path
+        if not path.startswith("/api/admin"):
+            continue
+        for method in sorted(route.methods or set()):
+            if method in ("HEAD", "OPTIONS"):
+                continue
+            if path == "/api/admin/login" and method == "POST":
+                continue  # login itself must work without a token
+            url = re.sub(r"\{\w+\}", "1", path)
+            r = client.request(method, url, json={} if method in ("POST", "PUT", "PATCH") else None)
+            checked += 1
+            assert r.status_code == 401, f"{method} {url} returned {r.status_code}, expected 401"
+    assert checked >= 15  # sanity: the loop really saw the admin API (17 endpoints + login skipped)
+
+
+def test_query_param_validation(client, admin):
+    """Bad filter values fail validation with 422 instead of being silently ignored."""
+    assert client.get("/api/admin/fraud-flags", params={"status": "nonsense"}, headers=admin).status_code == 422
+    assert client.get("/api/admin/members/export", params={"format": "xls"}, headers=admin).status_code == 422
+    assert client.get("/api/admin/members", params={"status": "weird-status"}, headers=admin).status_code == 422
+    assert client.get("/api/admin/members", params={"q": "x" * 120}, headers=admin).status_code == 422
+    assert client.get("/api/links/resolve", params={"src": "x" * 500}).status_code == 422
+
+
 # ---------- SPA fallback ----------
 
 def test_spa_deep_links_and_api_404(client):

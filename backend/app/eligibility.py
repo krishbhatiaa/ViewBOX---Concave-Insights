@@ -1,10 +1,19 @@
 from datetime import datetime, date, timedelta
-from .models import Completion, AdminOverride
+from .models import Completion, AdminOverride, EligibilityResult
 
 COOL_OFF_DAYS = 90  # ~3 months
 
 def age_of(dob: date, today: date) -> int:
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+def record_result(db, member_id, survey_id, result, reason):
+    """Persist a computed eligibility result: one row per member+survey, updated in place."""
+    row = db.query(EligibilityResult).filter_by(member_id=member_id, survey_id=survey_id).first()
+    if row is None:
+        db.add(EligibilityResult(member_id=member_id, survey_id=survey_id, result=result, reason_text=reason))
+    else:
+        row.result, row.reason_text, row.computed_at = result, reason, datetime.utcnow()
+    return result, reason
 
 def _check(rule, m, today):
     v = rule.value
