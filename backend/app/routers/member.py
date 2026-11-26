@@ -10,6 +10,7 @@ from .. import security as sec
 from ..deps import base_url, db_dep, me, member_auth
 from ..eligibility import evaluate, next_eligible_date, record_result
 from ..models import Completion, Payout, Referral, Survey
+from ..schemas import MeOut, ReferralOut, StatusOut, SurveyOut
 
 router = APIRouter()
 
@@ -18,12 +19,12 @@ def referral_link(request: Request, member_id: int, channel: str) -> str:
     return f"{base_url(request)}/signup?ref={sec.sign_link('ref', str(member_id))}&ch={quote(channel)}"
 
 
-@router.get("/api/me")
+@router.get("/api/me", response_model=MeOut)
 def get_me(request: Request, ch: str = Query("direct", max_length=30),
            t=Depends(member_auth), db: Session = Depends(db_dep)):
     m = me(t, db)
     d = next_eligible_date(db, m)
-    return {"id": m.id, "name": m.name, "phone": sec.mask(m.phone), "city": m.city,
+    return {"id": m.id, "name": m.name, "phone": m.phone, "city": m.city,
             "interests": [i for i in (m.interests or "").split(",") if i],
             "next_eligible_date": d and d.isoformat(),
             "referral_link": referral_link(request, m.id, ch)}
@@ -43,7 +44,7 @@ def referral_qr(request: Request, ch: str = Query("direct", max_length=30),
                              headers={"Content-Disposition": 'attachment; filename="referral-qr.png"'})
 
 
-@router.get("/api/surveys")
+@router.get("/api/surveys", response_model=list[SurveyOut])
 def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
     """Live surveys for this member; every computed result is saved to eligibility_results."""
     m = me(t, db)
@@ -60,7 +61,7 @@ def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
     return sorted(out, key=lambda x: not x["matches_interests"])
 
 
-@router.get("/api/me/status")
+@router.get("/api/me/status", response_model=StatusOut)
 def my_status(t=Depends(member_auth), db: Session = Depends(db_dep)):
     """Member's own pipeline stage, completions and earnings - so they never need to call ops."""
     m = me(t, db)
@@ -76,11 +77,11 @@ def my_status(t=Depends(member_auth), db: Session = Depends(db_dep)):
                          "status": p.status} for p in db.query(Payout).filter_by(member_id=m.id)]}
 
 
-@router.get("/api/me/referrals")
+@router.get("/api/me/referrals", response_model=list[ReferralOut])
 def my_referrals(t=Depends(member_auth), db: Session = Depends(db_dep)):
     """Each referred friend's stage + failure reason, phone masked (98XXXXXX21)."""
     rows = db.query(Referral).filter_by(referrer_id=t["sub"]).all()
     bonus = {p.referral_id: p for p in db.query(Payout).filter(Payout.member_id == t["sub"], Payout.referral_id != None)}
     return [{"bonus": {"amount": bonus[r.id].amount, "status": bonus[r.id].status} if r.id in bonus else None,
-             "friend": r.referred.name, "phone": sec.mask(r.referred.phone), "stage": r.stage,
+              "friend": r.referred.name, "phone": r.referred.phone, "stage": r.stage,
              "failure_reason": r.failure_reason, "updated_at": r.updated_at.isoformat()} for r in rows]

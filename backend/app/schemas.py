@@ -3,7 +3,7 @@ import re
 from datetime import date, datetime
 from typing import Any, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 
 class PhoneIn(BaseModel):
@@ -125,3 +125,64 @@ class OverrideIn(BaseModel):
 
 class PayoutStatusIn(BaseModel):
     status: Literal["Approved", "Paid"]
+
+
+# Admin grid/export keeps full phone where operations explicitly needs it; member schemas mask it.
+class _PhoneMasked(BaseModel):
+    phone: str
+
+    @field_serializer("phone")
+    def _mask_phone(self, value: str) -> str:
+        return value[:2] + "X" * 6 + value[-2:] if value and len(value) >= 4 else "XXXX"
+
+
+class MeOut(_PhoneMasked):
+    id: int
+    name: str
+    city: Optional[str] = None
+    interests: List[str] = []
+    next_eligible_date: Optional[str] = None
+    referral_link: str
+
+
+class SurveyOut(BaseModel):
+    id: int
+    title: str
+    description: str
+    deadline: Optional[datetime] = None
+    amount: float
+    matches_interests: bool
+    result: str
+    reason: Optional[str] = None
+
+
+class CompletionOut(BaseModel):
+    survey: str
+    completed_at: date
+    quality_passed: bool
+
+
+class PayoutOut(BaseModel):
+    kind: str
+    amount: float
+    status: str
+
+
+class StatusOut(BaseModel):
+    stage: str
+    failure_reason: Optional[str] = None
+    completions: List[CompletionOut] = []
+    payouts: List[PayoutOut] = []
+
+
+class BonusOut(BaseModel):
+    amount: float
+    status: str
+
+
+class ReferralOut(_PhoneMasked):
+    bonus: Optional[BonusOut] = None
+    friend: str
+    stage: str
+    failure_reason: Optional[str] = None
+    updated_at: datetime
