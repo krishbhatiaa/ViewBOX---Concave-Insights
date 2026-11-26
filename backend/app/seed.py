@@ -28,7 +28,8 @@ def seed():
     Base.metadata.drop_all(engine); Base.metadata.create_all(engine); db = SessionLocal()
     db.add(AdminUser(email="admin@concave.test", password_hash=sec.hash_pw("admin123")))
     for n, t in [("WhatsApp - Mumbai Group", "whatsapp"), ("Staff - Priya", "staff"), ("Instagram", "instagram"), ("Facebook", "facebook"),
-                 ("Website", "website"), ("Referral", "referral"), ("LinkedIn", "linkedin"), ("Meta Ads", "meta_ads")]:
+                 ("Website", "website"), ("Referral", "referral"), ("LinkedIn", "linkedin"), ("Meta Ads", "meta_ads"),
+                 ("Google Form", "google_form")]:
         db.add(Source(name=n, type=t, unique_slug=n.lower().replace(" - ", "-").replace(" ", "-")))
     db.flush(); S = {s.name: s.id for s in db.query(Source)}
     def mem(i, name, dob, g, city, inc, ints, src, ref=None, stage="Lead", why=None, device_id=None):

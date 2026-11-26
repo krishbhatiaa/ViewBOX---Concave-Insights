@@ -160,7 +160,7 @@ def test_source_dashboard_shows_completion_rate_quality_score():
     stats = _read("pages/admin/StatsPage.jsx")
     assert "Completion rate" in stats
     assert "QualityBar" in stats
-    assert "bg-emerald-500" in stats and "bg-rose-500" in stats
+    assert "var(--color-deep)" in stats and "var(--color-acc)" in stats
     assert "converts {ratio}x better than" in stats
     assert "consider shifting spend." in stats
 
@@ -214,6 +214,24 @@ def test_member_layout_guards_incomplete_profiles_and_profile_can_patch():
     assert 'method: "PATCH"' in profile
     assert 'api("/api/me"' in profile
     assert "Save profile" in profile
+
+
+def test_payout_utr_is_visible_to_ops_and_members():
+    assert "UTR / transaction ID" in _read("pages/admin/PayoutsPage.jsx")
+    assert "p.utr" in _read("pages/admin/PayoutsPage.jsx")
+    home = _read("pages/member/HomePage.jsx")
+    assert "UTR / transaction ID" in home and "p.utr" in home
+    assert "UTR {r.bonus.utr}" in _read("pages/member/ReferralsPage.jsx")
+
+
+def test_surveys_page_exposes_google_forms_and_xlsx_sync():
+    surveys = _read("pages/admin/SurveysPage.jsx")
+    assert '"/api/admin/google-forms/sync"' in surveys
+    assert '"/api/admin/google-form-leads/export"' in surveys
+    assert "Sync Google Form responses" in surveys and "Download leads .xlsx" in surveys
+    assert "google_form_url" in surveys and "Open form" in surveys
+    home = _read("pages/member/HomePage.jsx")
+    assert "Open Google Form" in home and "google_form_url" in home
 
 
 def test_survey_cycle_limit_frontend():

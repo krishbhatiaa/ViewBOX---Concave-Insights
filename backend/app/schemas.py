@@ -154,6 +154,17 @@ class MetaLeadIn(BaseModel):
     fields: Any = None
 
 
+class GoogleFormLeadIn(BaseModel):
+    response_id: str = Field(min_length=1, max_length=120)
+    form_id: Optional[str] = Field(default=None, max_length=200)
+    survey_id: Optional[int] = None
+    fields: Any = {}
+    name: Optional[str] = Field(default=None, max_length=120)
+    phone: Optional[str] = Field(default=None, max_length=40)
+    city: Optional[str] = Field(default=None, max_length=80)
+    email: Optional[str] = Field(default=None, max_length=160)
+
+
 class FlagReviewIn(BaseModel):
     status: Literal["Cleared", "Confirmed"]
     note: Optional[str] = Field(default=None, max_length=300)
@@ -210,6 +221,8 @@ class SurveyOut(BaseModel):
     matched_interests: List[str] = []
     result: str
     reason: Optional[str] = None
+    google_form_url: Optional[str] = None
+    google_form_mode: str = "mock"
 
 
 class CompletionOut(BaseModel):
@@ -222,6 +235,7 @@ class PayoutOut(BaseModel):
     kind: str
     amount: float
     status: str
+    utr: Optional[str] = None
 
 
 class StatusOut(BaseModel):
@@ -234,6 +248,7 @@ class StatusOut(BaseModel):
 class BonusOut(BaseModel):
     amount: float
     status: str
+    utr: Optional[str] = None
 
 
 class ReferralOut(_PhoneMasked):

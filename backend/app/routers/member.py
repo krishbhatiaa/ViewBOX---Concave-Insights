@@ -84,7 +84,8 @@ def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
         out.append({"id": s.id, "title": s.title, "description": s.description,
                     "deadline": s.deadline and s.deadline.isoformat(), "amount": s.amount,
                     "matches_interests": bool(matched), "matched_interests": matched,
-                    "result": res, "reason": why})
+                    "result": res, "reason": why,
+                    "google_form_url": s.google_form_url, "google_form_mode": s.google_form_mode or "mock"})
     db.commit()
     return sorted(out, key=lambda x: not x["matches_interests"])
 
@@ -102,7 +103,7 @@ def my_status(t=Depends(member_auth), db: Session = Depends(db_dep)):
     return {"stage": r.stage if r else "Lead", "failure_reason": r.failure_reason if r else None,
             "completions": comps,
             "payouts": [{"kind": "Referral bonus" if p.referral_id else "Survey payment", "amount": p.amount,
-                         "status": p.status} for p in db.query(Payout).filter_by(member_id=m.id)]}
+                         "status": p.status, "utr": p.utr} for p in db.query(Payout).filter_by(member_id=m.id)]}
 
 
 @router.get("/api/me/referrals", response_model=list[ReferralOut])
@@ -110,6 +111,7 @@ def my_referrals(t=Depends(member_auth), db: Session = Depends(db_dep)):
     """Each referred friend's stage + failure reason, phone masked (98XXXXXX21)."""
     rows = db.query(Referral).filter_by(referrer_id=t["sub"]).all()
     bonus = {p.referral_id: p for p in db.query(Payout).filter(Payout.member_id == t["sub"], Payout.referral_id != None)}
-    return [{"bonus": {"amount": bonus[r.id].amount, "status": bonus[r.id].status} if r.id in bonus else None,
+    return [{"bonus": {"amount": bonus[r.id].amount, "status": bonus[r.id].status,
+                       "utr": bonus[r.id].utr} if r.id in bonus else None,
               "friend": r.referred.name, "phone": r.referred.phone, "stage": r.stage,
              "failure_reason": r.failure_reason, "updated_at": r.updated_at.isoformat()} for r in rows]

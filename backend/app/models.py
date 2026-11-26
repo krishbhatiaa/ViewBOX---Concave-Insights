@@ -4,6 +4,8 @@ from sqlalchemy import (create_engine, event, Column, Integer, String, DateTime,
                         ForeignKey, Numeric, UniqueConstraint)
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
+from .security import new_utr
+
 engine = create_engine(os.getenv("DATABASE_URL", "sqlite:///./viewbox.db"), connect_args={"check_same_thread": False})
 
 
@@ -46,6 +48,10 @@ class Survey(Base):
     status = Column(String, default="live"); deadline = Column(DateTime); quota = Column(Integer)
     amount = Column(Numeric(10, 2), default=0); created_at = Column(DateTime, default=now)
     interests = Column(Text, nullable=True)
+    google_form_id = Column(String, nullable=True)
+    google_form_url = Column(String, nullable=True)
+    google_form_mode = Column(String, default="mock")
+    google_form_responses_sheet_id = Column(String, nullable=True)
     rules = relationship("SurveyRule", cascade="all, delete-orphan")
 
 class SurveyRule(Base):
@@ -75,6 +81,7 @@ class Payout(Base):
     __tablename__ = "payouts"
     id = Column(Integer, primary_key=True); member_id = FK("members.id"); survey_id = FK("surveys.id"); referral_id = FK("referrals.id")
     amount = Column(Numeric(10, 2)); status = Column(String, default="Pending"); approved_by = Column(String); approved_at = Column(DateTime)
+    utr = Column(String, unique=True, index=True, default=new_utr)
 
 class ImportLog(Base):
     __tablename__ = "import_logs"
@@ -86,6 +93,21 @@ class MetaLead(Base):
     id = Column(Integer, primary_key=True); lead_id = Column(String, unique=True, nullable=False); form_id = Column(String)
     campaign_id = Column(String); ad_id = Column(String); received_at = Column(DateTime, default=now)
     raw_payload_json = Column(Text); member_id = FK("members.id")
+
+class GoogleFormLead(Base):
+    """A response captured from a survey's Google Form, labelled Google Form (not a direct member)."""
+    __tablename__ = "google_form_leads"
+    id = Column(Integer, primary_key=True)
+    response_id = Column(String, unique=True, nullable=False, index=True)
+    form_id = Column(String, nullable=True)
+    survey_id = FK("surveys.id")
+    member_id = FK("members.id")
+    name = Column(String, nullable=True); phone = Column(String, nullable=True)
+    city = Column(String, nullable=True); email = Column(String, nullable=True)
+    answers_json = Column(Text, nullable=True)
+    source = Column(String, default="Google Form")
+    status = Column(String, default="Lead")
+    received_at = Column(DateTime, default=now)
 
 class AdminOverride(Base):
     __tablename__ = "admin_overrides"

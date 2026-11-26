@@ -18,7 +18,7 @@ from ..models import (AdminOverride, AdminUser, AuditEvent, Completion, FraudFla
                        Payout, Referral, Source, Survey, SurveyRule, TouchEvent)
 from ..schemas import (AdminLogin, FlagReviewIn, GridFilterIn, OverrideIn, PayoutStatusIn, SourceIn,
                         StageIn, SuggestRulesIn, SurveyIn, SurveyPatchIn, validate_survey_deadline)
-from ..services import audit, grid as grid_svc, sheets
+from ..services import audit, google_forms, grid as grid_svc, sheets
 from ..services.referral import set_stage as apply_stage
 from ..services.rule_suggest import suggest_rules
 
@@ -86,6 +86,8 @@ def add_source(b: SourceIn, request: Request, _=Depends(admin_auth), db: Session
 def admin_surveys(_=Depends(admin_auth), db: Session = Depends(db_dep)):
     return [{"id": x.id, "title": x.title, "status": x.status, "deadline": x.deadline and x.deadline.date().isoformat(),
              "quota": x.quota, "amount": x.amount, "interests": survey_interests(x),
+             "google_form_id": x.google_form_id, "google_form_url": x.google_form_url,
+             "google_form_mode": x.google_form_mode or "mock",
              "completions": db.query(Completion).filter_by(survey_id=x.id).count(),
              "rules": [{"rule_type": r.rule_type, "value": r.value, "strict_or_flexible": r.strict_or_flexible}
                        for r in x.rules]} for x in db.query(Survey).order_by(Survey.id.desc())]
@@ -99,8 +101,9 @@ def add_survey(b: SurveyIn, _=Depends(admin_auth), db: Session = Depends(db_dep)
                rules=[SurveyRule(**r.model_dump(), operator="between" if r.rule_type == "age" else "in")
                       for r in b.rules])
     db.add(s)
-    db.commit()
-    return {"id": s.id}
+    db.flush()
+    form = google_forms.create_form(db, s)
+    return {"id": s.id, "google_form": form}
 
 
 @router.patch("/api/admin/surveys/{sid}")
@@ -184,6 +187,28 @@ def sheets_pull(worksheet: str = Query("sheet1", max_length=100), _=Depends(admi
         raise HTTPException(502, str(exc))
 
 
+# ---------- Google Forms leads + .xlsx sync ----------
+@router.get("/api/admin/google-form-leads")
+def google_form_leads(limit: int = Query(100, ge=1, le=500), _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return google_forms.list_leads(db, limit)
+
+
+@router.post("/api/admin/google-forms/sync")
+def google_forms_sync(_=Depends(admin_auth), db: Session = Depends(db_dep)):
+    try:
+        return google_forms.sync_from_sheet(db)
+    except google_forms.FormsError as exc:
+        raise HTTPException(502, str(exc))
+
+
+@router.get("/api/admin/google-form-leads/export")
+def google_form_leads_export(_=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return StreamingResponse(
+        google_forms.export_xlsx(db),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=google_form_leads.xlsx"})
+
+
 # ---------- referral stages ----------
 @router.get("/api/admin/referrals")
 def list_referrals(stage: Optional[Literal["Lead", "Fit", "Completed", "Failed"]] = None,
@@ -229,7 +254,7 @@ def payouts(_=Depends(admin_auth), db: Session = Depends(db_dep)):
             raise HTTPException(404, "Member not found.")
         out.append({"id": p.id, "member": m.name,
                     "kind": "Referral bonus" if p.referral_id else "Survey payment",
-                    "amount": p.amount, "status": p.status})
+                    "amount": p.amount, "status": p.status, "utr": p.utr})
     return out
 
 

@@ -1,4 +1,5 @@
 import base64, hashlib, hmac, json, os, secrets, time
+from datetime import datetime
 from fastapi import HTTPException
 
 from .services.ratelimit import rate_limiter
@@ -7,6 +8,12 @@ SECRET = os.getenv("APP_SECRET", "dev-secret-change-me").encode()
 ALLOWED_ALGORITHMS = ["HS256"]
 TOKEN_ROLES = ("member", "admin")
 CLOCK_SKEW_SECONDS = 30
+
+
+def new_utr() -> str:
+    """Bank-style reference stored on every payout when it is generated."""
+    return f"UTR-{datetime.utcnow():%Y%m%d}-{secrets.token_hex(4).upper()}"
+
 
 def sanitize_param(value: str | None, limit: int = 64) -> str:
     """Strip CRLF/semicolon/NUL from a user-supplied attribution value."""

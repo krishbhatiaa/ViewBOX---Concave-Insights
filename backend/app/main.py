@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from .models import Base, engine
-from .routers import admin, auth, importer, member, meta
+from .routers import admin, auth, google_forms, importer, member, meta
 from .services.ratelimit import rate_limiter, warn_if_inmemory_multiworker
 
 log = logging.getLogger("viewbox")
@@ -47,7 +47,9 @@ def _ensure_columns():
             "fraud_flags": {"reviewed_by": "VARCHAR", "reviewed_at": "DATETIME"},
             "sheet_sync_log": {"row_count": "INTEGER"},
             "referrals": {"channel": "VARCHAR"},
-            "surveys": {"interests": "TEXT"}}
+            "surveys": {"interests": "TEXT", "google_form_id": "VARCHAR", "google_form_url": "VARCHAR",
+                        "google_form_mode": "VARCHAR", "google_form_responses_sheet_id": "VARCHAR"},
+            "payouts": {"utr": "VARCHAR"}}
     insp = inspect(engine)
     with engine.begin() as conn:
         for name in ("audit_events", "sheet_sync_log", "touch_events"):
@@ -64,6 +66,7 @@ def _ensure_columns():
                                    "ON eligibility_results (member_id, survey_id)",
             "admin_overrides": "CREATE UNIQUE INDEX IF NOT EXISTS uq_override_member_survey "
                                "ON admin_overrides (member_id, survey_id)",
+            "payouts": "CREATE UNIQUE INDEX IF NOT EXISTS uq_payout_utr ON payouts (utr)",
         }
         tables = set(insp.get_table_names())
         for table, stmt in indexes.items():
@@ -74,6 +77,26 @@ def _ensure_columns():
 _ensure_columns()
 
 
+def _backfill_payout_utrs():
+    """Old payouts predate UTRs; give each one a stable reference at startup."""
+    from .models import Payout, SessionLocal
+    from .security import new_utr
+
+    db = SessionLocal()
+    try:
+        changed = False
+        for payout in db.query(Payout).filter(Payout.utr == None).all():
+            payout.utr = new_utr()
+            changed = True
+        if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
+_backfill_payout_utrs()
+
+
 @app.exception_handler(Exception)
 async def friendly(_, exc):
     correlation_id = str(uuid.uuid4())
@@ -82,7 +105,7 @@ async def friendly(_, exc):
                          "correlation_id": correlation_id}, 500)
 
 
-for r in (auth.router, member.router, admin.router, importer.router, meta.router):
+for r in (auth.router, member.router, admin.router, importer.router, meta.router, google_forms.router):
     app.include_router(r)
 
 # ---------- frontend (SPA: every non-API GET serves the built app, so deep links work) ----------
