@@ -573,17 +573,16 @@ def test_meta_webhook_signature_when_secret_set(client):
     try:
         lead = {"lead_id": "L-SIG-1", "campaign_id": "C-SIG",
                 "fields": {"name": "Sig Person", "phone": "+919811122233", "city": "Pune"}}
-        assert client.post("/api/meta/lead", json=lead).status_code == 401  # unsigned
+        assert client.post("/api/meta/lead", json=lead).status_code == 403  # unsigned
         bad = "sha256=" + "0" * 64
-        assert client.post("/api/meta/lead", json=lead, headers={"X-Hub-Signature-256": bad}).status_code == 401
+        assert client.post("/api/meta/lead", json=lead, headers={"X-Hub-Signature-256": bad}).status_code == 403
         raw = std_json.dumps(lead).encode()
         sig = "sha256=" + std_hmac.new(b"meta-test-secret", raw, hashlib.sha256).hexdigest()
         r = client.post("/api/meta/lead", content=raw,
                         headers={"Content-Type": "application/json", "X-Hub-Signature-256": sig})
         assert r.status_code == 200 and r.json()["status"] == "created"
-        # a shared token header is accepted too (the brief allows either)
         lead2 = {"lead_id": "L-SIG-2", "fields": {"name": "Token Person", "phone": "+919811122244", "city": "Pune"}}
-        assert client.post("/api/meta/lead", json=lead2, headers={"X-Webhook-Token": "meta-test-secret"}).status_code == 200
+        assert client.post("/api/meta/lead", json=lead2, headers={"X-Webhook-Token": "meta-test-secret"}).status_code == 403
         # dedupe still works for authenticated repeats
         r = client.post("/api/meta/lead", content=raw,
                         headers={"Content-Type": "application/json", "X-Hub-Signature-256": sig})

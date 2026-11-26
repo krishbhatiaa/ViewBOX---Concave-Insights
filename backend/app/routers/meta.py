@@ -3,9 +3,9 @@
 Real lead ads call a webhook with the raw lead, and the app then reads the form
 fields from Meta's Graph API. This mock accepts the fields directly, but still
 verifies the webhook exactly like production does: with META_WEBHOOK_SECRET set,
-every request must carry a valid X-Hub-Signature-256 (HMAC-SHA256 of the raw body)
-or an X-Webhook-Token header. Without the secret configured the endpoint stays
-open so the README example works out of the box (dev mode, logged as a warning).
+every request must carry a valid X-Hub-Signature-256 (HMAC-SHA256 of the raw body).
+Without the secret configured the endpoint stays open so the README example works
+out of the box (dev mode, logged as a warning).
 """
 import hashlib
 import hmac
@@ -26,7 +26,7 @@ router = APIRouter()
 
 
 async def verify_webhook(request: Request):
-    """Shared-secret check for the Meta webhook (signature or token header).
+    """Require a valid HMAC-SHA256 signature when a webhook secret is configured.
 
     Reads the raw body (cached by Starlette) so the HMAC covers exactly the bytes sent.
     """
@@ -35,15 +35,10 @@ async def verify_webhook(request: Request):
     if not secret:
         log.warning("META_WEBHOOK_SECRET is not set - /api/meta/lead accepts unsigned leads (dev mode)")
         return
-    token = request.headers.get("x-webhook-token", "")
-    if token and hmac.compare_digest(token, secret):
-        return
+    expected = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
     sig = request.headers.get("x-hub-signature-256", "")
-    if sig.startswith("sha256="):
-        digest = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
-        if hmac.compare_digest(sig[7:], digest):
-            return
-    raise HTTPException(401, "Invalid or missing Meta webhook signature.")
+    if not hmac.compare_digest(sig, expected):
+        raise HTTPException(403, "Invalid or missing Meta webhook signature.")
 
 
 @router.post("/api/meta/lead")
