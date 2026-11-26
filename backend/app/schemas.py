@@ -164,10 +164,23 @@ class _PhoneMasked(BaseModel):
 class MeOut(_PhoneMasked):
     id: int
     name: str
+    dob: Optional[date] = None
+    gender: Optional[str] = None
     city: Optional[str] = None
+    income_range: Optional[str] = None
     interests: List[str] = []
+    profile_complete: bool
     next_eligible_date: Optional[str] = None
     referral_link: str
+
+
+class MePatchIn(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    dob: date
+    gender: Literal["Male", "Female", "Other"]
+    city: str = Field(min_length=2, max_length=60)
+    income_range: str
+    interests: List[str] = []
 
 
 class SurveyOut(BaseModel):

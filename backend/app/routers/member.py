@@ -10,7 +10,7 @@ from .. import security as sec
 from ..deps import base_url, db_dep, me, member_auth
 from ..eligibility import evaluate, next_eligible_date, record_result
 from ..models import Completion, Payout, Referral, Survey
-from ..schemas import MeOut, ReferralOut, StatusOut, SurveyOut
+from ..schemas import MeOut, MePatchIn, ReferralOut, StatusOut, SurveyOut
 
 router = APIRouter()
 
@@ -24,6 +24,11 @@ def interest_tags(raw: str | None) -> list[str]:
     return result
 
 
+def profile_complete(member) -> bool:
+    return all([member.name, member.dob, member.gender, member.city, member.income_range,
+                member.interests is not None])
+
+
 def referral_link(request: Request, member_id: int, channel: str) -> str:
     return f"{base_url(request)}/signup?ref={sec.sign_link('ref', str(member_id))}&ch={quote(channel)}"
 
@@ -33,10 +38,22 @@ def get_me(request: Request, ch: str = Query("direct", max_length=30),
            t=Depends(member_auth), db: Session = Depends(db_dep)):
     m = me(t, db)
     d = next_eligible_date(db, m)
-    return {"id": m.id, "name": m.name, "phone": m.phone, "city": m.city,
-            "interests": interest_tags(m.interests),
+    return {"id": m.id, "name": m.name, "phone": m.phone, "dob": m.dob,
+            "gender": m.gender, "city": m.city, "income_range": m.income_range,
+            "interests": interest_tags(m.interests), "profile_complete": profile_complete(m),
             "next_eligible_date": d and d.isoformat(),
             "referral_link": referral_link(request, m.id, ch)}
+
+
+@router.patch("/api/me")
+def patch_me(b: MePatchIn, t=Depends(member_auth), db: Session = Depends(db_dep)):
+    m = me(t, db)
+    for field, value in b.model_dump().items():
+        if field == "interests":
+            value = ",".join(value)
+        setattr(m, field, value)
+    db.commit()
+    return {"ok": True, "profile_complete": profile_complete(m)}
 
 
 @router.get("/api/me/referral-qr")
