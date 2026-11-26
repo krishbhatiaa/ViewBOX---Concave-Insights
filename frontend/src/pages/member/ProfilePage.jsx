@@ -8,6 +8,7 @@ import { GENDER_OPTIONS, INCOME_OPTIONS } from "../../lib/stages.js";
 export default function ProfilePage() {
   const navigate = useNavigate();
   const pending = getPending();
+  const [isExisting] = useState(!pending && !!tokens.get(true));
   const [resolve, setResolve] = useState({ source: null, referrer: null, needs_fallback: true });
   const [sources, setSources] = useState([]);
   const [form, setForm] = useState({
@@ -27,7 +28,10 @@ export default function ProfilePage() {
   const [resolveError, setResolveError] = useState("");
 
   useEffect(() => {
-    if (!pending) return;
+    if (!pending) {
+      setResolveLoading(false);
+      return undefined;
+    }
     const params = getLinkParams();
     let alive = true;
     (async () => {
@@ -60,7 +64,25 @@ export default function ProfilePage() {
     };
   }, [pending]);
 
-  if (!pending) return <Navigate to="/login" replace />;
+  useEffect(() => {
+    if (!isExisting) return;
+    api("/api/me", { role: "member" })
+      .then((me) => {
+        setForm((f) => ({
+          ...f,
+          name: me.name || "",
+          dob: me.dob ? String(me.dob).slice(0, 10) : "",
+          gender: me.gender || "",
+          city: me.city || "",
+          income_range: me.income_range || "",
+          interests: (me.interests || []).join(", "),
+        }));
+      })
+      .catch((err) => setFormError(err.message))
+      .finally(() => setResolveLoading(false));
+  }, [isExisting]);
+
+  if (!pending && !isExisting) return <Navigate to="/login" replace />;
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -88,6 +110,31 @@ export default function ProfilePage() {
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
+    const interests = form.interests.split(",").map((x) => x.trim()).filter(Boolean);
+    if (isExisting) {
+      setLoading(true);
+      try {
+        await api("/api/me", {
+          method: "PATCH",
+          role: "member",
+          body: {
+            name: form.name.trim(),
+            dob: form.dob,
+            gender: form.gender,
+            city: form.city.trim(),
+            income_range: form.income_range,
+            interests,
+          },
+        });
+        navigate("/home", { replace: true });
+      } catch (err) {
+        setFormError(err.message);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     const params = getLinkParams();
     const body = {
       phone: pending.phone,
@@ -97,7 +144,7 @@ export default function ProfilePage() {
       gender: form.gender,
       city: form.city.trim(),
       income_range: form.income_range,
-      interests: form.interests.split(",").map((x) => x.trim()).filter(Boolean),
+      interests,
       src: params.src || null,
       ref: params.ref || null,
       first_src: params.first || null,
@@ -211,7 +258,7 @@ export default function ProfilePage() {
           )}
 
           <Button type="submit" loading={loading} className="w-full">
-            Create my account
+            {isExisting ? "Save profile" : "Create my account"}
           </Button>
         </form>
       </Card>

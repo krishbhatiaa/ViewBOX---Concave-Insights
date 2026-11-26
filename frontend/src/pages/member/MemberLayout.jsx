@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { tokens } from "../../api.js";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { api, tokens } from "../../api.js";
 import ThemeToggle from "../../components/ThemeToggle.jsx";
+import { useToast } from "../../components/Toast.jsx";
 import { Button } from "../../components/ui.jsx";
 
 const linkCls = ({ isActive }) =>
@@ -13,10 +14,28 @@ const linkCls = ({ isActive }) =>
 
 export default function MemberLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const toast = useToast();
   const token = tokens.get(true);
   useEffect(() => {
     if (!token) navigate("/login", { replace: true });
   }, [token, navigate]);
+  useEffect(() => {
+    if (!token) return undefined;
+    let active = true;
+    api("/api/me", { role: "member" })
+      .then((me) => {
+        if (active && !me.profile_complete && location.pathname !== "/profile") {
+          navigate("/profile", { replace: true });
+        }
+      })
+      .catch((err) => {
+        if (active) toast(err.message, "error");
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, location.pathname, navigate, toast]);
   if (!token) return null;
   return (
     <div className="min-h-dvh">

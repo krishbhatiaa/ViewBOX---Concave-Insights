@@ -195,3 +195,16 @@ def test_admin_referrals_page_is_routed_and_linked():
     member_page = _read("pages/member/ReferralsPage.jsx")
     assert "StageTag stage={r.stage}" in member_page
     assert "r.failure_reason" in member_page
+
+
+def test_member_layout_guards_incomplete_profiles_and_profile_can_patch():
+    layout = _read("pages/member/MemberLayout.jsx")
+    assert 'api("/api/me"' in layout
+    assert "profile_complete" in layout
+    assert 'navigate("/profile", { replace: true })' in layout
+
+    profile = _read("pages/member/ProfilePage.jsx")
+    assert "isExisting" in profile
+    assert 'method: "PATCH"' in profile
+    assert 'api("/api/me"' in profile
+    assert "Save profile" in profile
