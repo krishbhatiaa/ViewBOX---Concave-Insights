@@ -179,3 +179,19 @@ def test_main_sanitizes_and_signs_attribution_before_localstorage():
     assert 'localStorage.setItem("vb_src", signed.src)' in main
     assert 'localStorage.setItem("vb_ref", signed.ref)' in main
     assert 'localStorage.setItem("vb_src", qs.get("src"))' not in main
+
+
+def test_admin_referrals_page_is_routed_and_linked():
+    page = _read("pages/admin/AdminReferralsPage.jsx")
+    assert "/api/admin/referrals" in page
+    assert '/stage`' in page
+    assert "Mark Fit" in page and "Completed is irreversible" in page
+    assert "Pending payouts" in page and "failure_reason" in page
+    for state in ("LoadingCard", "ErrorState", "EmptyState", "RefreshBanner", "Modal"):
+        assert state in page
+    assert 'path="/admin/referrals"' in _read("App.jsx")
+    assert 'to: "/admin/referrals"' in _read("pages/admin/AdminLayout.jsx")
+
+    member_page = _read("pages/member/ReferralsPage.jsx")
+    assert "StageTag stage={r.stage}" in member_page
+    assert "r.failure_reason" in member_page

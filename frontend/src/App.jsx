@@ -7,6 +7,7 @@ import { applyTheme } from "./components/ThemeToggle.jsx";
 import { Button, Card, PageHeader } from "./components/ui.jsx";
 import AdminLayout from "./pages/admin/AdminLayout.jsx";
 import AdminLoginPage from "./pages/admin/AdminLoginPage.jsx";
+import AdminReferralsPage from "./pages/admin/AdminReferralsPage.jsx";
 import FraudPage from "./pages/admin/FraudPage.jsx";
 import GridPage from "./pages/admin/GridPage.jsx";
 import ImportPage from "./pages/admin/ImportPage.jsx";
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="/admin" element={<AdminLoginPage />} />
           <Route element={<AdminLayout />}>
             <Route path="/admin/members" element={<GridPage />} />
+            <Route path="/admin/referrals" element={<AdminReferralsPage />} />
             <Route path="/admin/surveys" element={<SurveysPage />} />
             <Route path="/admin/sources" element={<SourcesPage />} />
             <Route path="/admin/stats" element={<StatsPage />} />

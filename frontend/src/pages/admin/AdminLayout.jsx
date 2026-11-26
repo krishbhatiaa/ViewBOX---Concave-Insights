@@ -6,6 +6,7 @@ import { Button } from "../../components/ui.jsx";
 
 const tabs = [
   { to: "/admin/members", label: "Members" },
+  { to: "/admin/referrals", label: "Referrals" },
   { to: "/admin/surveys", label: "Surveys" },
   { to: "/admin/sources", label: "Sources" },
   { to: "/admin/stats", label: "Source stats" },
