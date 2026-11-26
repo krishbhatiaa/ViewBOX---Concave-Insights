@@ -33,6 +33,8 @@ def _ensure_columns():
             "fraud_flags": {"reviewed_by": "VARCHAR", "reviewed_at": "DATETIME"}}
     insp = inspect(engine)
     with engine.begin() as conn:
+        for name in ("audit_events", "sheet_sync_log"):
+            Base.metadata.tables[name].create(bind=conn, checkfirst=True)
         for table, cols in want.items():
             if table not in insp.get_table_names():
                 continue

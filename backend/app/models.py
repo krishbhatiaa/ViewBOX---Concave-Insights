@@ -101,3 +101,16 @@ class FraudFlag(Base):
 class AdminUser(Base):
     __tablename__ = "admin_users"
     id = Column(Integer, primary_key=True); email = Column(String, unique=True); password_hash = Column(String); created_at = Column(DateTime, default=now)
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+    id = Column(Integer, primary_key=True)
+    actor_id = Column(Integer); actor_role = Column(String)
+    action = Column(String, nullable=False); resource_type = Column(String); resource_id = Column(Integer)
+    details_json = Column(Text); ip = Column(String); created_at = Column(DateTime, default=now)
+
+class SheetSyncLog(Base):
+    __tablename__ = "sheet_sync_log"
+    id = Column(Integer, primary_key=True)
+    entity_type = Column(String); direction = Column(String); status = Column(String)
+    error_text = Column(Text); synced_at = Column(DateTime, default=now)

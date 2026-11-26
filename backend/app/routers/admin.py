@@ -15,7 +15,7 @@ from ..models import (AdminOverride, AdminUser, Completion, FraudFlag, Member, M
                       Referral, Source, Survey, SurveyRule)
 from ..schemas import (AdminLogin, FlagReviewIn, OverrideIn, PayoutStatusIn, SourceIn, StageIn,
                        SuggestRulesIn, SurveyIn, SurveyPatchIn)
-from ..services import grid as grid_svc
+from ..services import audit, grid as grid_svc
 from ..services.referral import set_stage as apply_stage
 from ..services.rule_suggest import suggest_rules
 
@@ -123,8 +123,12 @@ def export(q: str = Query("", max_length=100), source_id: Optional[int] = None,
 
 # ---------- referral stages ----------
 @router.post("/api/admin/referrals/{rid}/stage")
-def set_stage(rid: int, b: StageIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
-    return apply_stage(db, rid, b.stage, b.failure_reason, b.survey_id, b.quality_check_passed)
+def set_stage(request: Request, rid: int, b: StageIn, t=Depends(admin_auth), db: Session = Depends(db_dep)):
+    result = apply_stage(db, rid, b.stage, b.failure_reason, b.survey_id, b.quality_check_passed)
+    audit.log(db, "referral_stage_changed", "referral", rid, actor=t, details={"stage": result["stage"]},
+              ip=request.client.host if request.client else None)
+    db.commit()
+    return result
 
 
 # ---------- payout ledger ----------
@@ -142,7 +146,7 @@ def payouts(_=Depends(admin_auth), db: Session = Depends(db_dep)):
 
 
 @router.post("/api/admin/payouts/{pid}/status")
-def payout_status(pid: int, b: Optional[PayoutStatusIn] = Body(None),
+def payout_status(request: Request, pid: int, b: Optional[PayoutStatusIn] = Body(None),
                   status: Optional[Literal["Approved", "Paid"]] = Query(None),
                   t=Depends(admin_auth), db: Session = Depends(db_dep)):
     """Accepts the status as JSON body (frontend) or query string (README examples)."""
@@ -157,6 +161,8 @@ def payout_status(pid: int, b: Optional[PayoutStatusIn] = Body(None),
     p.status = val
     if val == "Approved":
         p.approved_by, p.approved_at = t["sub"], datetime.utcnow()
+    audit.log(db, "payout_status_changed", "payout", pid, actor=t, details={"status": val},
+              ip=request.client.host if request.client else None)
     db.commit()
     return {"ok": True}
 
@@ -230,7 +236,7 @@ def fraud_flags(status: Literal["open", "Cleared", "Confirmed", "all"] = "open",
 
 
 @router.post("/api/admin/fraud-flags/{fid}/review")
-def review_flag(fid: int, b: FlagReviewIn, t=Depends(admin_auth), db: Session = Depends(db_dep)):
+def review_flag(request: Request, fid: int, b: FlagReviewIn, t=Depends(admin_auth), db: Session = Depends(db_dep)):
     f = db.get(FraudFlag, fid)
     if not f:
         raise HTTPException(404, "Flag not found.")
@@ -243,6 +249,9 @@ def review_flag(fid: int, b: FlagReviewIn, t=Depends(admin_auth), db: Session = 
     m = db.get(Member, f.member_id)
     if m:
         m.is_flagged = open_left > 0
+    audit.log(db, "fraud_flag_reviewed", "fraud_flag", fid, actor=t,
+              details={"status": f.status, "note": b.note},
+              ip=request.client.host if request.client else None)
     db.commit()
     return {"ok": True, "status": f.status, "member_flagged": bool(m and m.is_flagged)}
 
@@ -281,9 +290,13 @@ def create_override(b: OverrideIn, t=Depends(admin_auth), db: Session = Depends(
         raise HTTPException(404, "Survey not found.")
     if db.query(AdminOverride).filter_by(member_id=b.member_id, survey_id=b.survey_id).first():
         raise HTTPException(409, "An override already exists for this member and survey.")
-    db.add(AdminOverride(member_id=b.member_id, survey_id=b.survey_id, overridden_by=t["sub"],
-                         reason=b.reason.strip()))
+    o = AdminOverride(member_id=b.member_id, survey_id=b.survey_id, overridden_by=t["sub"],
+                      reason=b.reason.strip())
+    db.add(o)
     try:
+        db.flush()
+        audit.log(db, "override_created", "override", o.id, actor=t,
+                  details={"member_id": b.member_id, "survey_id": b.survey_id})
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -292,10 +305,12 @@ def create_override(b: OverrideIn, t=Depends(admin_auth), db: Session = Depends(
 
 
 @router.delete("/api/admin/overrides/{oid}")
-def delete_override(oid: int, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+def delete_override(oid: int, t=Depends(admin_auth), db: Session = Depends(db_dep)):
     o = db.get(AdminOverride, oid)
     if not o:
         raise HTTPException(404, "Override not found.")
+    audit.log(db, "override_deleted", "override", oid, actor=t,
+              details={"member_id": o.member_id, "survey_id": o.survey_id})
     db.delete(o)
     db.commit()
     return {"ok": True}
