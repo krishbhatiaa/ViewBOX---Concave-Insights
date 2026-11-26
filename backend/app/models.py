@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Date, Boolean, Text, ForeignKey, Float
+from sqlalchemy import (create_engine, Column, Integer, String, DateTime, Date, Boolean, Text,
+                        ForeignKey, Float, UniqueConstraint)
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 engine = create_engine(os.getenv("DATABASE_URL", "sqlite:///./viewbox.db"), connect_args={"check_same_thread": False})
@@ -40,6 +41,7 @@ class SurveyRule(Base):
 
 class EligibilityResult(Base):
     __tablename__ = "eligibility_results"
+    __table_args__ = (UniqueConstraint("member_id", "survey_id", name="uq_elig_member_survey"),)
     id = Column(Integer, primary_key=True); member_id = FK("members.id"); survey_id = FK("surveys.id")
     result = Column(String); reason_text = Column(Text); computed_at = Column(DateTime, default=now)
 
@@ -72,6 +74,7 @@ class MetaLead(Base):
 
 class AdminOverride(Base):
     __tablename__ = "admin_overrides"
+    __table_args__ = (UniqueConstraint("member_id", "survey_id", name="uq_override_member_survey"),)
     id = Column(Integer, primary_key=True); member_id = FK("members.id"); survey_id = FK("surveys.id")
     overridden_by = Column(String); reason = Column(Text); created_at = Column(DateTime, default=now)
 

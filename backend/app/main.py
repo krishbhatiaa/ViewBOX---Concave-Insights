@@ -40,6 +40,16 @@ def _ensure_columns():
             for name, typ in cols.items():
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {typ}"))
+        indexes = {
+            "eligibility_results": "CREATE UNIQUE INDEX IF NOT EXISTS uq_elig_member_survey "
+                                   "ON eligibility_results (member_id, survey_id)",
+            "admin_overrides": "CREATE UNIQUE INDEX IF NOT EXISTS uq_override_member_survey "
+                               "ON admin_overrides (member_id, survey_id)",
+        }
+        tables = set(insp.get_table_names())
+        for table, stmt in indexes.items():
+            if table in tables:
+                conn.execute(text(stmt))
 
 
 _ensure_columns()

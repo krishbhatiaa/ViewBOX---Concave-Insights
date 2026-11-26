@@ -5,6 +5,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import fraud
@@ -282,7 +283,11 @@ def create_override(b: OverrideIn, t=Depends(admin_auth), db: Session = Depends(
         raise HTTPException(409, "An override already exists for this member and survey.")
     db.add(AdminOverride(member_id=b.member_id, survey_id=b.survey_id, overridden_by=t["sub"],
                          reason=b.reason.strip()))
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "An override already exists for this member and survey.")
     return {"ok": True}
 
 
