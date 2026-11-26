@@ -138,6 +138,10 @@ def test_meta_simulator_page_is_routed_and_linked():
     assert 'fetch("/api/meta/lead"' in page
     assert "Status: ${result.status}" in page
     assert "Graph API" in page
+    assert "Payload format" in page
+    assert "Wrapped leadgen envelope" in page
+    assert "Test handshake" in page
+    assert "/webhooks/meta" in page
     assert 'path="/admin/meta-simulator"' in _read("App.jsx")
     assert 'to: "/admin/meta-simulator"' in _read("pages/admin/AdminLayout.jsx")
 
