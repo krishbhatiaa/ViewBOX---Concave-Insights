@@ -2,10 +2,10 @@
 VIEWBOX PANEL SYSTEM — FULL PROJECT STATUS / BUILD RECORD (updated.txt)
 Generated: 2026-11-26
 Repo: C:\Users\Admin\Desktop\ViewBOX1\viewbox
-Local HEAD: 9822d9d (security: pin audited dependencies and document honest security posture)
+Local HEAD before final documentation commit: 24caea2 (feat: surface UTRs and Google Forms in portal and admin UI)
 Branch: main
-Local history: 58 commits
-Remote: https://github.com/krishbhatiaa/ViewBOX---Concave-Insights.git (configured without a named origin)
+Local history before final documentation commit: 74 commits
+Remote: https://github.com/krishbhatiaa/ViewBOX---Concave-Insights.git (pushed directly by URL; no named origin alias)
 Purpose: searchable factual record of what was built, the tech used, the methods
          used to build it, validation evidence, and honest prototype limits.
 ================================================================================
@@ -15,24 +15,27 @@ PART 0 — EXECUTIVE SUMMARY
 ViewBOX is a full-stack referral survey panel prototype:
 
   * FastAPI backend with SQLite persistence, HMAC-signed member/admin tokens,
-    OTP-style login, eligibility rules, referral lifecycle, payouts, fraud flags,
-    CSV import, Meta webhook lead intake, Google Sheets sync, audit log, touch
-    event log, and pluggable rate limiting.
+    OTP-style login, eligibility rules, referral lifecycle, payouts with unique
+    UTR transaction IDs, fraud flags, CSV import, Meta webhook lead intake,
+    Google Forms creation/response capture, Google Sheets sync, audit log,
+    touch event log, and pluggable rate limiting.
   * React SPA with mobile-first member portal and admin dashboard, routes for
     login/signup/profile/home/referrals and 10 admin screens, error boundaries,
     toasts, modals, theme toggle, signed attribution capture, QR download,
-    Meta webhook simulator, charts, and batch payout approval.
-  * 103 backend tests pass serially; frontend production build passes; pip-audit
-    reports no known vulnerabilities with the pinned dependency set.
+    Meta webhook simulator, charts, batch payout approval, Google Form links,
+    form-response sync/download actions, and UTR columns.
+  * 132 backend tests pass serially; frontend production build passes; the local
+    app is verified on ports 8000 (API/docs) and 5173 (built SPA + /api proxy).
   * Everything is pinned for repeatability; the runtime still needs a fresh
     clean-machine setup proof, CI, frontend tests, Redis for multi-worker rate
     limits, real OTP/payments, and production secret management.
   * This is a prototype. It is not claimed to be unhackable.
 
-Working tree state at generation: this updated.txt rewrite is the only intended
-uncommitted change. All code commits are committed; P3 was pushed through
-ad6f08c, but SEC1-SEC10 (70ee711..9822d9d) remain local because no push was
-requested.
+Working tree state at generation: the backend and frontend code commits
+(e80fd97 and 24caea2) are committed and pushed; this updated.txt rewrite plus
+README.md are the final documentation commit. The previously local style
+commits e64f5b9..94a8a22 were also pushed in separate pushes before the feature
+work.
 
 --------------------------------------------------------------------------------
 PART 1 — TECH STACK (verified against requirements.txt and package.json)
@@ -82,7 +85,10 @@ DATABASE
   Schema drift:   handled by create_all() + idempotent _ensure_columns() shim
 
 TOOLING / METHOD
-  Iterative commits: 58 commits from scaffold through P3 and SEC hardening.
+   Iterative commits: 74 commits before the final documentation commit, from
+                      scaffold through P3, SEC hardening, later product/style
+                      work, UTR payouts, and Google Forms.
+
   Validation:        pytest serial only; npm run build; pip-audit; static tests
                      assert frontend strings, repo hygiene, headers, tokens, etc.
   Git:               conventional feat/fix/docs/test/chore messages in current work.
@@ -131,11 +137,12 @@ CORE MODULES
       members, surveys, completion, payouts, fraud examples, touches.
 
 ROUTERS
-  backend/app/routers/auth.py      public/auth/link endpoints
-  backend/app/routers/member.py    member profile/surveys/status/referrals/QR
-  backend/app/routers/admin.py     admin CRUD, grid, export, payouts, fraud, audit
-  backend/app/routers/importer.py  CSV dry-run and commit import
-  backend/app/routers/meta.py      Meta webhook lead endpoint
+  backend/app/routers/auth.py         public/auth/link endpoints
+  backend/app/routers/member.py       member profile/surveys/status/referrals/QR + UTR/form links
+  backend/app/routers/admin.py        admin CRUD, grid, export, payouts, fraud, audit, form leads
+  backend/app/routers/importer.py     CSV dry-run and commit import
+  backend/app/routers/meta.py         Meta webhook lead endpoint
+  backend/app/routers/google_forms.py Google Form response webhook (HMAC optional)
 
 SERVICES
   backend/app/services/audit.py          sanitized append-only audit log writer
@@ -145,9 +152,10 @@ SERVICES
   backend/app/services/grid.py           member grid rows + CSV/XLSX export
   backend/app/services/rule_suggest.py   OpenAI-compatible LLM rule suggester + offline fallback
   backend/app/services/sheets.py         Google Sheets push/pull with sync log
+  backend/app/services/google_forms.py   form creation, lead ingest, .xlsx sync, Sheet pull
 
 --------------------------------------------------------------------------------
-PART 3 — DATABASE MODEL (16 tables in backend/app/models.py)
+PART 3 — DATABASE MODEL (17 tables in backend/app/models.py)
 --------------------------------------------------------------------------------
   1. sources
      id, name(unique), type, unique_slug(unique), created_at.
@@ -158,9 +166,11 @@ PART 3 — DATABASE MODEL (16 tables in backend/app/models.py)
      interests, source_id FK, referrer_id self-FK, first_touch_source_id FK,
      created_at, is_flagged, ip, device_id.
 
-  3. surveys
-     id, title, description, status (default live), deadline, quota,
-     amount Numeric(10,2), created_at.
+   3. surveys
+      id, title, description, status (default live), deadline, quota,
+      amount Numeric(10,2), created_at, google_form_id, google_form_url,
+      google_form_mode (live|demo), google_form_responses_sheet_id.
+
 
   4. survey_rules
      id, survey_id FK CASCADE, rule_type, operator, value,
@@ -178,9 +188,11 @@ PART 3 — DATABASE MODEL (16 tables in backend/app/models.py)
      id, member_id FK CASCADE, survey_id nullable FK, completed_at,
      quality_check_passed.
 
-  8. payouts
-     id, member_id FK CASCADE, survey_id FK, referral_id nullable FK,
-     amount Numeric(10,2), status default Pending, approved_by, approved_at.
+   8. payouts
+      id, member_id FK CASCADE, survey_id FK, referral_id nullable FK,
+      amount Numeric(10,2), status default Pending, approved_by, approved_at,
+      utr unique indexed (UTR-YYYYMMDD-XXXXXXXX, generated at creation).
+
 
   9. import_logs
      id, filename, total_rows, fixed_count, skipped_count,
@@ -208,19 +220,26 @@ PART 3 — DATABASE MODEL (16 tables in backend/app/models.py)
  15. sheet_sync_logs
      id, direction, status, details_json, created_at.
 
- 16. touch_events
-     id, member_id nullable FK, source_id FK, kind, referrer_id nullable,
-     raw_params_json, created_at.
-     Provides first/last-touch attribution evidence and event log.
+  16. touch_events
+      id, member_id nullable FK, source_id FK, kind, referrer_id nullable,
+      raw_params_json, created_at.
+      Provides first/last-touch attribution evidence and event log.
+
+  17. google_form_leads
+      id, response_id unique, form_id, survey_id nullable FK, member_id nullable FK,
+      name, phone, city, email, answers_json, source default "Google Form",
+      status default "Lead" (or "needs review"), received_at.
+      Deduped form-response store feeding the shared grid and .xlsx export.
 
 Design artifacts: design/01_user_flow.md and design/02_database.md were frozen
+
 on Day 2 around the original 13-table baseline; design/03_changes_day5.md records
 later addenda. Graphviz .dot/.png/.svg versions live in design/. The plotted ER
 diagram therefore predates audit_logs, sheet_sync_logs, touch_events, and some
 constraint/type hardening; models.py is authoritative for the current schema.
 
 --------------------------------------------------------------------------------
-PART 4 — API SURFACE (40 router routes + SPA catch-all)
+PART 4 — API SURFACE (all router routes + SPA catch-all)
 --------------------------------------------------------------------------------
 PUBLIC / AUTH (backend/app/routers/auth.py)
   POST /api/otp/request              Demo OTP returned in response; per-IP limit.
@@ -236,10 +255,12 @@ MEMBER (backend/app/routers/member.py; require member token)
   GET  /api/me                       Profile + masked phone + next eligible date +
                                      referral link; response_model=MeOut.
   GET  /api/me/referral-qr            QR code PNG for referral link.
-  GET  /api/surveys                   Live surveys + computed eligibility; response
-                                     models mask phone-derived fields.
-  GET  /api/me/status                 Stage, completion, and payout status; StatusOut.
-  GET  /api/me/referrals              Referred members, stages, masked phones, bonus.
+  GET  /api/surveys                   Live surveys + computed eligibility; includes
+                                      google_form_url/google_form_mode and masked fields.
+  GET  /api/me/status                 Stage, completion, and payout status with each
+                                      payout's UTR; StatusOut.
+  GET  /api/me/referrals              Referred members, stages, masked phones, bonus UTR.
+
 
 ADMIN AUTH / AUDIT / TOUCHES (backend/app/routers/admin.py)
   POST /api/admin/login               Email + PBKDF2 password -> 24h admin token.
@@ -250,9 +271,15 @@ ADMIN SOURCES / SURVEYS
   GET    /api/admin/sources            List with signed public/referral links.
   POST   /api/admin/sources            Create source; 201, unique slug handling.
   GET    /api/admin/surveys            List surveys with rules/completion counts.
-  POST   /api/admin/surveys            Create survey with rules; 201.
+  POST   /api/admin/surveys            Create survey with rules and a matching Google
+                                      Form (live API or demo link); 201.
   PATCH  /api/admin/surveys/{sid}     Edit status, deadline, quota, amount.
   POST   /api/admin/suggest-rules     Tier-3 LLM/heuristic candidates; never auto-saved.
+
+ADMIN GOOGLE FORMS
+  GET    /api/admin/google-form-leads  List captured Google Form responses.
+  POST   /api/admin/google-forms/sync  Pull linked Sheet responses and refresh the .xlsx.
+  GET    /api/admin/google-form-leads/export  Download google_form_leads.xlsx.
 
 ADMIN GRID / EXPORT / SHEETS
   GET  /api/admin/members              Filter by q, source_id, city, status, survey_id.
@@ -265,7 +292,7 @@ ADMIN REFERRALS / PAYOUTS
   POST /api/admin/referrals/{rid}/stage  Lead|Fit|Completed|Failed with reason,
                                           survey, quality flag; forced failure on
                                           quality fail; rollback on system error.
-  GET  /api/admin/payouts                Ledger newest-first.
+  GET  /api/admin/payouts                Ledger newest-first; includes UTR for ops.
   POST /api/admin/payouts/batch-approve  Batch approve selected or all Pending
                                           payouts; rejects non-Pending; returns
                                           approved_count and total_amount (P3).
@@ -288,10 +315,15 @@ IMPORT / WEBHOOK / SPA
                                       writes; commit writes in one transaction;
                                       returns total/imported/fixed/warned/skipped/details.
   POST /api/meta/lead                 Meta webhook; dedupe lead_id; requires
-                                      X-Hub-Signature-256 when META_WEBHOOK_SECRET
-                                      is set; dev-open with warning when unset;
-                                      invalid lead stored then returns 422.
+                                       X-Hub-Signature-256 when META_WEBHOOK_SECRET
+                                       is set; dev-open with warning when unset;
+                                       invalid lead stored then returns 422.
+  POST /api/google-forms/lead         Google Form response webhook; dedupe response_id;
+                                       requires X-Google-Forms-Signature-256 when
+                                       GOOGLE_FORMS_WEBHOOK_SECRET is set; invalid
+                                       response stored as "needs review" then 422.
   GET  /{path}                        Serves frontend/dist with traversal guard;
+
                                       api/* misses are JSON 404.
 
 --------------------------------------------------------------------------------
@@ -325,6 +357,7 @@ REFERRAL + PAYOUT PIPELINE
   * Completed requires survey_id and rejects duplicate completions.
   * Quality-passed completion creates Completion + member payout(survey.amount) +
     referrer bonus payout (REFERRAL_BONUS, default 100), idempotent per referral.
+  * Every payout receives a unique UTR at creation; startup backfills older rows.
   * Quality-failed forces Failed with reason and no payouts.
   * Payout status: Pending -> Approved -> Paid; skipping Approved is 409.
   * Batch approve accepts explicit IDs or all Pending, returns count and total.
@@ -368,6 +401,23 @@ META LEADS
     hmac.compare_digest when META_WEBHOOK_SECRET is configured; old
     X-Webhook-Token path was removed; missing secret remains an explicit dev-open
     path with a warning.
+
+GOOGLE FORMS
+  * POST /api/admin/surveys creates a matching Google Form titled after the survey.
+    With GOOGLE_SERVICE_ACCOUNT_JSON the live Forms API creates name/phone/city/
+    email questions; without credentials a deterministic local demo link is stored
+    and google_form_mode is "demo".
+  * POST /api/google-forms/lead accepts {response_id, form_id, fields}, normalizes
+    phone/name/city/email, dedupes by response_id, links to the survey's Google Form
+    source, creates a minimal Member + Referral for valid responses, and writes a
+    GoogleFormLead row with source "Google Form".
+  * Invalid/unlinked responses are still stored with status "needs review" and the
+    endpoint returns 422 with a safe reason.
+  * Every ingest/sync rewrites data/google_form_leads.xlsx (or
+    GOOGLE_FORM_XLSX_PATH); POST /api/admin/google-forms/sync can pull from a linked
+    Google Sheet using GOOGLE_FORM_RESPONSES_SHEET_ID.
+  * GOOGLE_FORMS_WEBHOOK_SECRET enables HMAC verification via
+    X-Google-Forms-Signature-256: sha256=<hmac-sha256 of raw body>.
 
 RATE LIMITS
   * OTP attempts are per phone; signup/OTP IP limits use a sliding window.
@@ -443,6 +493,9 @@ FRONTEND METHODS / UX
   * Copy-to-clipboard for referral/source links.
   * Sticky admin filter bar measured with ResizeObserver (--admin-header-h).
   * Modal replaced prompt()/alert() for destructive actions, including batch payouts.
+  * Admin Surveys screen shows Google Form links, response sync, and .xlsx download;
+    member Home screen links to the matching form and labels demo links.
+  * Admin/member payout tables and referral bonuses display UTR transaction IDs.
   * Light/dark/system theme persisted in localStorage vb_theme.
   * SPA fallback allows direct deep links; Vite dev proxy sends /api to localhost:8000.
   * No frontend unit test or lint runner; validation is production build plus backend
@@ -507,13 +560,15 @@ PART 8 — VALIDATION EVIDENCE
 --------------------------------------------------------------------------------
 BACKEND TESTS
   Command: cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
-  Final result: 103 passed.
-  Test modules present (24 + conftest):
+   Final result: 132 passed.
+   Test modules present (26 + conftest):
+
     test_admin_null_checks.py, test_admin_surveys.py, test_api.py,
     test_attribution_security.py, test_audit.py, test_auth.py,
     test_batch_payouts.py, test_db_constraints.py, test_eligibility.py,
     test_failclosed.py, test_foreign_keys.py, test_frontend.py,
-    test_import.py, test_log_hygiene.py, test_meta.py, test_money.py,
+    test_google_forms.py, test_import.py, test_log_hygiene.py, test_meta.py,
+    test_money.py, test_payout_utr.py,
     test_ratelimit.py, test_referral_channel.py, test_repo_hygiene.py,
     test_seed_demo.py, test_security_headers.py, test_sheets.py,
     test_token_security.py, test_touch.py, conftest.py
@@ -526,6 +581,9 @@ BACKEND TESTS
     * Grid filters, eligibility persistence, CSV/XLSX export.
     * Referral stages, payout approval gate, batch approval.
     * Meta lead dedupe, HMAC signature, admin lead views, auth.
+    * Payout UTR generation, backfill, unique visibility, and masking checks.
+    * Google Form creation/mock links, response ingest, dedupe, source labelling,
+      invalid-response review queue, .xlsx export, Sheet sync, and webhook HMAC.
     * CSV preview/commit, real 189-row sample, date/referrer/unknown source handling.
     * Fraud flags, burst detection via forwarded header, ring scan.
     * Sheets status behavior, touch logging, seed demo data.
@@ -543,7 +601,10 @@ DEPENDENCY AUDIT
   Final result: No known vulnerabilities.
 
 GIT HYGIENE
-  Before this updated.txt rewrite: working tree clean.
+   Before this updated.txt rewrite: backend and frontend feature commits were clean
+   and pushed through 24caea2; only README.md and updated.txt remained for the
+   final documentation commit.
+
   Tracked files exclude .env, *.db, __pycache__, *.pyc, .venv, node_modules,
   frontend/dist, logs, and .pytest_cache via .gitignore.
 
@@ -589,11 +650,13 @@ ROOT
 --------------------------------------------------------------------------------
 PART 10 — GIT HISTORY / DELIVERY STATUS
 --------------------------------------------------------------------------------
-  Total commits: 58, all on main, 2026-11-20 -> 2026-11-26.
-  Local HEAD: 9822d9d.
-  Remote main: ad6f08c; local is 10 commits ahead (SEC1-SEC10) and not pushed.
-  Remote URL is configured without a named origin remote.
-  No tags, no stashes.
+   Total commits: 74 before the final documentation commit, all on main.
+   Local HEAD before the final documentation commit: 24caea2.
+   Remote main was advanced in separate pushes through 24caea2.
+   Remote URL: https://github.com/krishbhatiaa/ViewBOX---Concave-Insights.git
+   No named origin alias; pushes were made directly to the HTTPS URL.
+   No tags, no stashes.
+
   Older 15 commits were authored Developer <dev@example.com>; newer commits use
   Krish Bhatia <142397285+krishbhatiaa@users.noreply.github.com>.
 
@@ -655,18 +718,41 @@ COMMIT LEDGER (oldest -> newest)
   7a8d8bf security: add baseline security headers and verify CORS allowlist
   5152b6b security: remove fail-open exception handling in eligibility and payouts
   1d26c3b security: sanitize log fields and strip secrets from error logs
-  9822d9d security: pin audited dependencies and document honest security posture
+   9822d9d security: pin audited dependencies and document honest security posture
+   62cb4a2 docs: refresh full project status record
+   20917a1 feat: match surveys by normalized interest tags
+   f9e53d8 feat: show interest tags in survey admin and member portal
+   3243b93 feat: add admin referrals list endpoint
+   9dbbd7f feat: add admin referrals stage workflow page
+   0e43926 feat: expose and patch member profile completeness
+   937efdd feat: guard incomplete member profiles with patchable profile page
+   22ebc14 feat: enforce 15-day survey cycle
+   dfefb25 feat: add realistic Meta webhook handshake and lead fetcher
+   f8c2103 docs: finalize assessment gap addendum and validation record
+   357127b feat: seed bundled respondent sample data
+   e64f5b9 style: tokens and base paper theme
+   b5eb77c style: paper component library
+   94a8a22 style: layouts and navigation
+   e80fd97 feat: add payout UTRs and Google Forms lead pipeline
+   24caea2 feat: surface UTRs and Google Forms in portal and admin UI
+   (final docs commit) docs: refresh build record and video-ready status
 
 --------------------------------------------------------------------------------
 PART 11 — HOW TO RUN / VERIFY LOCALLY
 --------------------------------------------------------------------------------
 BACKEND (from C:\Users\Admin\Desktop\ViewBOX1\viewbox\backend)
+
   python -m pip install -r requirements.txt
   python -m app.seed                       # optional/destructive demo reset
-  uvicorn app.main:app --host 127.0.0.1 --port 8000
-  Open: http://127.0.0.1:8000/docs
+   uvicorn app.main:app --host 127.0.0.1 --port 8000
+   Open: http://127.0.0.1:8000/docs
+   Optional: copy .env.example to .env and set GOOGLE_SERVICE_ACCOUNT_JSON for
+   live Form creation, GOOGLE_FORM_RESPONSES_SHEET_ID for Sheet sync,
+   GOOGLE_FORMS_WEBHOOK_SECRET for signed responses, and GOOGLE_FORM_XLSX_PATH
+   to relocate google_form_leads.xlsx. Without these the demo fallback is used.
 
 FRONTEND (from C:\Users\Admin\Desktop\ViewBOX1\viewbox\frontend)
+
   npm install
   npm run dev -- --host 127.0.0.1 --port 5173
   Open: http://127.0.0.1:5173
@@ -686,10 +772,13 @@ VALIDATION
 PART 12 — HONEST REMAINING WORK / PROTOTYPE GAPS
 --------------------------------------------------------------------------------
 DELIVERY
-  * SEC1-SEC10 commits are local only; push if and when requested.
-  * Fresh clone setup not proven end-to-end; README "~2 min" remains a claim.
-  * No CI, no walkthrough video, no final Day-2/Day-7 email proof.
-  * Remote has no named origin alias.
+   * All local commits were pushed in separate pushes through 24caea2; the final
+     documentation commit is pushed after this record is written.
+   * Fresh clone setup not proven end-to-end; README "~2 min" remains a claim.
+   * No CI. Walkthrough video is scheduled for the day after this record; no final
+     Day-2/Day-7 email proof is included.
+   * Remote has no named origin alias; pushes were made directly by HTTPS URL.
+
 
 PLATFORM
   * No Alembic migrations; runtime ALTER shim only.
@@ -703,20 +792,24 @@ PLATFORM
 PRODUCT
   * Survey status/deadline/quota/amount can now be patched; earlier immutable-status
     limitation is resolved, but no delete/archive endpoint exists.
-  * No member profile update endpoint after signup.
+   * Profile completeness is exposed and patchable, but there is no general
+     member-managed profile editor beyond the guarded completion flow.
+
   * No logout/token revocation/refresh.
   * Imported rows skip IP/device fraud checks; only retroactive ring scan can flag.
   * Fraud scan is O(n^2) for bursts and loads all members for ring detection.
   * Grid evaluates eligibility per row (N+1 style queries).
 
 TESTING
-  * Backend has 103 tests and passes serially; frontend still has no native tests.
+   * Backend has 132 tests and passes serially; frontend still has no native tests.
+
   * No UI automation, no lint, no CI enforcement.
   * Parallel pytest runs can collide on the shared temp SQLite DB.
 
 DOCUMENTATION
-  * Design diagrams are frozen at the original 13-table baseline; authoritative
-    schema is models.py (16 tables).
+   * Design diagrams are frozen at the original 13-table baseline; authoritative
+     schema is models.py (17 tables, including google_form_leads).
+
   * Some checklist lines may still omit newer screens such as Meta Simulator.
   * README is honest but needs re-verification on a fresh machine.
 
@@ -725,29 +818,81 @@ SECURITY POSTURE
   * This remains a prototype and is not claimed to be unhackable.
 
 --------------------------------------------------------------------------------
-PART 13 — LOCAL RUN VERIFICATION (2026-11-26)
+PART 13 — LOCAL RUN VERIFICATION (2026-11-26, FINAL)
 --------------------------------------------------------------------------------
-  Ports 8000 and 5173 were free before startup.
+  Both ports were verified live at the time this record was finalized.
 
-  BACKEND
-    Command: cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-    Log: backend/uvicorn.log
-    Uvicorn process id observed: 23624
-    Result: application startup complete; running on http://127.0.0.1:8000.
+  COMBINED RUNTIME
+    A single detached Python process (listener PID 14316) serves:
+      * FastAPI backend on 127.0.0.1:8000
+      * Built React SPA on 127.0.0.1:5173 with a stdlib /api proxy to port 8000
     Verified HTTP 200:
       http://127.0.0.1:8000/docs
-      http://127.0.0.1:8000/openapi.json
-      http://127.0.0.1:8000/api/sources/public
-
-  FRONTEND
-    Command: cd frontend && npm run dev -- --host 127.0.0.1 --port 5173
-    Log: frontend/vite.log
-    Result: VITE v6.4.6 ready in 1977 ms.
-    Verified HTTP 200:
       http://127.0.0.1:5173/
-    Vite proxy is available for /api calls to the backend on port 8000.
+    Verified API through the 5173 proxy:
+      POST /api/admin/login with demo admin credentials succeeded.
+      GET  /api/sources/public returned the seeded/public sources.
+    Reason for the built-SPA harness: Vite dev starts correctly in the foreground
+    but does not survive this shell's process cleanup; the production build is
+    already verified and the harness makes the app reliably available at 5173.
+    For a normal machine, `npm run dev -- --host 127.0.0.1 --port 5173` remains
+    the documented frontend command.
 
-  Both servers were left running when this record was finalized.
+  VERIFICATION COMMANDS
+    cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
+      Result: 132 passed in ~43s.
+    cd frontend && npm run build
+      Result: built in ~11s; dist/index.html + hashed JS/CSS emitted.
+    git diff --check
+      Result: no whitespace errors.
+
+--------------------------------------------------------------------------------
+PART 14 — VIDEO-READY DEMO FLOW (record after this update)
+--------------------------------------------------------------------------------
+  1. Open http://127.0.0.1:5173 and show the member portal landing/theme.
+  2. Admin login at /admin:
+       email: admin@concave.test
+       password: admin123
+  3. Surveys screen:
+       * Show existing survey rows and Google Form link column.
+       * Create a new survey with rules; point out the Google Form link returned
+         by POST /api/admin/surveys (live API if credentials exist, otherwise a
+         clearly-labelled local demo link).
+       * Show the Sync Google Form responses and Download leads .xlsx buttons.
+  4. Google Form response intake:
+       * POST /api/google-forms/lead with response_id, form_id, and fields.
+       * When GOOGLE_FORMS_WEBHOOK_SECRET is set, include
+         X-Google-Forms-Signature-256: sha256=<HMAC of raw body>.
+       * Show the same name appearing in Admin Members/Grid with source
+         "Google Form", in GET /api/admin/google-form-leads, and in the exported
+         google_form_leads.xlsx.
+  5. Payout UTR story:
+       * Admin Payouts screen: show UTR / transaction ID column on each ledger row.
+       * Approve a Pending payout, optionally demonstrate batch approval.
+       * Member login with a seeded phone such as 9000000001, request OTP, log in,
+         and show the UTR only on that member's /api/me/status and Referrals bonus.
+  6. Close with docs at http://127.0.0.1:8000/docs and state the honest prototype
+     limits: no real SMS/payments, SQLite + runtime migration shim, in-process
+     rate limits, and no production secret manager.
+
+  DEMO PAYLOAD (Google Form response)
+    {
+      "response_id": "gf-demo-001",
+      "form_id": "<google_form_id from the survey row>",
+      "fields": {
+        "Full name": "Demo Respondent",
+        "Phone number": "+91 98600 10009",
+        "City": "Pune",
+        "Email": "demo@example.test"
+      }
+    }
+
+  DELIVERY STATUS
+    * Commits e64f5b9, b5eb77c, and 94a8a22 were pushed one by one.
+    * Feature commits e80fd97 and 24caea2 were pushed one by one.
+    * This final documentation commit is pushed after updated.txt and README.md
+      are staged.
+    * Code is ready for the scheduled walkthrough recording.
 ================================================================================
 END
 ================================================================================

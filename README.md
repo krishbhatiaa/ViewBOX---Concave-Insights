@@ -62,9 +62,10 @@ Note: `backend/requirements.txt` says "Tested, pinned environment (Python 3.13, 
 | `GET /webhooks/meta` verify handshake; `POST /api/meta/lead` accepts simple dev fields or wrapped Meta envelope, dedupes, flags invalid leads, signs POSTs when `META_WEBHOOK_SECRET` is set, and fetches fields through `LeadFetcher` (Graph API or mock) | Done |
 | Empty / loading / error states | Done (manually checked, no UI tests) |
 | Fraud flags + review queue (dup phone, self-referral, device/IP bursts, referral rings) | Done — detection on signup + on-demand scan; queue at Admin → Fraud queue; flags never deleted (Cleared/Confirmed) |
-| Payout ledger / approval | Done — Payouts screen; Paid blocked until Approved (API-enforced) |
+| Payout ledger / approval | Done — Payouts screen; Paid blocked until Approved (API-enforced); every payout gets a unique UTR shown to ops and only to that payout's member |
 | Admin manual override | Done — endpoint + “Override…” in the members grid; engine honours it |
 | Admin creates/edits surveys + Strict/Flexible rules and interest tags (UI); deadlines capped at 15 days from launch | Done |
+| Google Forms per survey | Done — a matching form is created with every survey (live Forms API when credentials are set, local demo link otherwise), members can open it, responses land in the shared grid as `Google Form` leads and sync to `data/google_form_leads.xlsx` |
 | Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | React + Vite + Tailwind frontend | Done |
@@ -90,7 +91,9 @@ Interactive docs at `/docs`. Key ones:
 | POST | `/api/admin/referrals/{id}/stage` | `{stage:"Completed",survey_id:1,quality_check_passed:true}` records completion, starts cool-off, creates payouts; `{stage:"Failed",failure_reason:"…"}` |
 | GET/POST | `/api/admin/surveys` | List / create survey with rules, interest tags and ≤15-day deadline |
 | PATCH | `/api/admin/surveys/{id}` | Edit status, deadline, quota, amount and interest tags |
-| GET/POST | `/api/admin/payouts`, `POST /api/admin/payouts/{id}/status` | Ledger; body `{status:"Approved"\|"Paid"}` (or `?status=`); Paid blocked until Approved |
+| GET/POST | `/api/admin/payouts`, `POST /api/admin/payouts/{id}/status` | Ledger; every row has a unique `utr`; body `{status:"Approved"\|"Paid"}` (or `?status=`); Paid blocked until Approved |
+| POST | `/api/google-forms/lead` | Apps Script/simulator pushes a form response (`response_id`, `form_id`, `fields`); deduped, stored as a `Google Form` lead and written to the shared `.xlsx` |
+| GET/POST | `/api/admin/google-form-leads`, `/api/admin/google-forms/sync` | Review form leads; pull responses from the linked Google Sheet; `GET /api/admin/google-form-leads/export` downloads `google_form_leads.xlsx` |
 | GET | `/api/me/status` | Member's own stage, completions, earnings |
 | GET | `/api/admin/source-stats` | Per-source funnel |
 | POST | `/api/admin/import` (+ `?dry_run=true`) | Multipart CSV → `{total_rows,imported,fixed,warned,skipped,details[]}`; dry-run validates only and writes nothing |
