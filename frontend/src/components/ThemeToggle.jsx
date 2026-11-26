@@ -30,15 +30,26 @@ export default function ThemeToggle() {
   }, [choice]);
 
   const next = CHOICES[(CHOICES.indexOf(choice) + 1) % CHOICES.length];
+  const segmentCls = (name) =>
+    `flex min-h-11 flex-1 items-center justify-center border-r border-line px-1 font-mono text-[9px] uppercase tracking-wide last:border-r-0 sm:px-2 sm:text-[10px] ${
+      choice === name ? "bg-paper-3 text-ink" : "text-ink-3"
+    }`;
   return (
     <button
       type="button"
       onClick={() => setChoice(next)}
       aria-label={`${LABELS[choice]}. Switch to ${next}.`}
       title={`${LABELS[choice]} — click for ${next}`}
-      className="min-h-11 rounded-lg px-2 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+      className="inline-flex min-h-11 items-center rounded-[2px] border border-line bg-paper"
     >
-      {LABELS[choice]}
+      <span className="hidden px-2 font-mono text-[10px] uppercase tracking-wide text-ink-3 sm:inline">Theme</span>
+      <span className="flex" aria-hidden="true">
+        {CHOICES.map((name) => (
+          <span key={name} className={segmentCls(name)}>
+            {name}
+          </span>
+        ))}
+      </span>
     </button>
   );
 }
