@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .. import fraud
 from .. import security as sec
 from ..deps import client_ip, db_dep, norm_phone
-from ..models import Member, Referral, Source
+from ..models import Member, Referral, Source, TouchEvent
 from ..schemas import LoginIn, PhoneIn, SignupIn
 
 router = APIRouter()
@@ -77,13 +77,20 @@ def signup(b: SignupIn, request: Request, x_device_id: str = Header(None), db: S
 
 
 @router.get("/api/links/resolve")
-def resolve_links(src: str = Query("", max_length=400), ref: str = Query("", max_length=400),
+def resolve_links(request: Request, src: str = Query("", max_length=400), ref: str = Query("", max_length=400),
                   db: Session = Depends(db_dep)):
-    """Lets the signup page greet the visitor and decide whether to show 'How did you hear about us?'."""
+    """Lets the signup page greet the visitor and decide whether to show 'How did you hear about us?'.
+
+    Every hit is logged as evidence only; first-touch attribution is unchanged and
+    touch_events.member_id stays nullable (no session/IP backfill in this prototype).
+    """
     slug = sec.verify_link("src", src) if src else None
     s = db.query(Source).filter_by(unique_slug=slug).first() if slug else None
     rid = sec.verify_link("ref", ref) if ref else None
     r = db.get(Member, int(rid)) if rid and rid.isdigit() else None
+    db.add(TouchEvent(source_slug=src or None, ref_slug=ref or None, ip=client_ip(request),
+                      user_agent=request.headers.get("user-agent"), created_at=datetime.utcnow()))
+    db.commit()
     return {"source": s and s.name, "referrer": r and r.name.split()[0], "needs_fallback": not s and not r}
 
 

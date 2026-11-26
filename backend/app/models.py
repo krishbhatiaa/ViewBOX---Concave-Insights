@@ -114,3 +114,9 @@ class SheetSyncLog(Base):
     id = Column(Integer, primary_key=True)
     entity_type = Column(String); direction = Column(String); status = Column(String); row_count = Column(Integer)
     error_text = Column(Text); synced_at = Column(DateTime, default=now)
+
+class TouchEvent(Base):
+    __tablename__ = "touch_events"
+    id = Column(Integer, primary_key=True)
+    source_slug = Column(String); ref_slug = Column(String); ip = Column(String); user_agent = Column(String)
+    member_id = Column(Integer, nullable=True); created_at = Column(DateTime, default=now)

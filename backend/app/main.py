@@ -34,7 +34,7 @@ def _ensure_columns():
             "sheet_sync_log": {"row_count": "INTEGER"}}
     insp = inspect(engine)
     with engine.begin() as conn:
-        for name in ("audit_events", "sheet_sync_log"):
+        for name in ("audit_events", "sheet_sync_log", "touch_events"):
             Base.metadata.tables[name].create(bind=conn, checkfirst=True)
         for table, cols in want.items():
             if table not in insp.get_table_names():

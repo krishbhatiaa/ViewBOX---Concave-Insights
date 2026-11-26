@@ -13,7 +13,7 @@ from .. import fraud
 from .. import security as sec
 from ..deps import admin_auth, db_dep, link_for, slugify
 from ..models import (AdminOverride, AdminUser, AuditEvent, Completion, FraudFlag, Member, MetaLead,
-                       Payout, Referral, Source, Survey, SurveyRule)
+                       Payout, Referral, Source, Survey, SurveyRule, TouchEvent)
 from ..schemas import (AdminLogin, FlagReviewIn, GridFilterIn, OverrideIn, PayoutStatusIn, SourceIn,
                        StageIn, SuggestRulesIn, SurveyIn, SurveyPatchIn)
 from ..services import audit, grid as grid_svc, sheets
@@ -40,6 +40,17 @@ def list_audit(limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0
              "resource_type": e.resource_type, "resource_id": e.resource_id,
              "details": json.loads(e.details_json) if e.details_json else None,
              "ip": e.ip, "created_at": e.created_at.isoformat()} for e in rows]
+
+
+@router.get("/api/admin/touches")
+def list_touches(member_id: Optional[int] = None, limit: int = Query(100, ge=1, le=500),
+                 _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    q = db.query(TouchEvent)
+    if member_id:
+        q = q.filter_by(member_id=member_id)
+    return [{"id": t.id, "source_slug": t.source_slug, "ref_slug": t.ref_slug, "ip": t.ip,
+             "user_agent": t.user_agent, "member_id": t.member_id, "created_at": t.created_at.isoformat()}
+            for t in q.order_by(TouchEvent.id.desc()).limit(limit)]
 
 
 # ---------- sources (data, not hardcoded) ----------
