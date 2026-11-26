@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   BAR_TONES,
   Card,
@@ -59,9 +60,11 @@ export default function StatsPage() {
     <div className="space-y-5">
       <PageHeader title="Source dashboard" description="Sign-ups, Fit and Completed per channel — sorted by volume." />
 
+      {error && rows?.length ? <RefreshBanner onRetry={load} /> : null}
+
       {loading && !rows ? (
         <LoadingCard label="Loading source stats…" />
-      ) : error && !rows ? (
+      ) : error && !rows?.length ? (
         <ErrorState message={error} onRetry={load} />
       ) : rows?.length ? (
         <>

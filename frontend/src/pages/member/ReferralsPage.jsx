@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Card,
   CopyButton,
@@ -47,6 +48,7 @@ export default function ReferralsPage() {
 
   return (
     <div className="space-y-5">
+      {error && rows ? <RefreshBanner onRetry={load} /> : null}
       <PageHeader
         title="My referrals"
         description="Track every friend you invited — their stage and your bonus, so you never need to call the team."

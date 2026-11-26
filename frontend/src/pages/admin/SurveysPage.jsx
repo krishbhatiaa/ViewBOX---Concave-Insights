@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Button,
   Card,
@@ -215,12 +216,14 @@ export default function SurveysPage() {
         </form>
       </Card>
 
+      {error && rows?.length ? <RefreshBanner onRetry={load} /> : null}
+
       <Card className="!p-0">
         <h2 className="px-4 pt-4 text-base font-semibold sm:px-5">All surveys</h2>
         <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
           {loading && !rows ? (
             <LoadingCard label="Loading surveys…" />
-          ) : error && !rows ? (
+          ) : error && !rows?.length ? (
             <ErrorState message={error} onRetry={load} />
           ) : rows?.length ? (
             <Table>

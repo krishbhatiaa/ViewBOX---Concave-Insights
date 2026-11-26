@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Card,
   CopyButton,
@@ -139,6 +140,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-5">
+      {error && data ? <RefreshBanner onRetry={load} /> : null}
       <PageHeader
         title={`Hi ${me.name}`}
         description={`${me.phone} · ${me.city || "—"}${referrals.length ? ` · ${referrals.length} friend${referrals.length > 1 ? "s" : ""} invited (${completedFriends} completed)` : ""}`}

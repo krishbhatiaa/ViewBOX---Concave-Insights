@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "frontend" / "src"
@@ -37,3 +38,33 @@ def test_error_boundary_and_complete_stage_explanations():
         assert f"{stage}: " in map_body
     referrals = _read("pages/member/ReferralsPage.jsx")
     assert "STAGE_EXPLANATION[r.stage] && <p>" in referrals
+
+
+def test_refresh_errors_surface_as_inline_banners():
+    banner = _read("pages/RefreshBanner.jsx")
+    assert "Couldn't refresh — showing cached data." in banner
+    assert "Retry" in banner and "setDismissed" in banner
+
+    pages = [
+        "pages/admin/GridPage.jsx",
+        "pages/admin/SurveysPage.jsx",
+        "pages/admin/SourcesPage.jsx",
+        "pages/admin/StatsPage.jsx",
+        "pages/admin/PayoutsPage.jsx",
+        "pages/admin/FraudPage.jsx",
+        "pages/admin/MetaLeadsPage.jsx",
+        "pages/member/HomePage.jsx",
+        "pages/member/ReferralsPage.jsx",
+    ]
+    for page in pages:
+        text = _read(page)
+        assert "RefreshBanner" in text, page
+        assert "ErrorState" in text, page
+        assert re.search(r"error && !(rows|flags|leads|data)\s+\?", text) is None, page
+
+
+def test_grid_filter_fetch_errors_are_not_swallowed():
+    grid = _read("pages/admin/GridPage.jsx")
+    assert ".catch(() => {})" not in grid
+    assert "filterError" in grid and "setFilterRetry" in grid
+    assert "Failed to load filters" in grid

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Card,
   EmptyState,
@@ -47,9 +48,11 @@ export default function MetaLeadsPage() {
         description="Leads from POST /api/meta/lead, grouped by campaign and ad."
       />
 
+      {error && leads?.length ? <RefreshBanner onRetry={load} /> : null}
+
       {loading && !leads ? (
         <LoadingCard label="Loading Meta leads…" />
-      ) : error && !leads ? (
+      ) : error && !leads?.length ? (
         <ErrorState message={error} onRetry={load} />
       ) : (
         <>

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Button,
   Card,
   EmptyState,
   ErrorState,
-  InlineError,
   PageHeader,
   Select,
   StatCard,
@@ -124,7 +124,9 @@ export default function FraudPage() {
         </div>
       </Card>
 
-      {error && !flags ? (
+      {error && flags?.length ? <RefreshBanner onRetry={load} /> : null}
+
+      {error && !flags?.length ? (
         <ErrorState message={error} onRetry={load} />
       ) : loading && !flags ? (
         <Card aria-busy="true">
@@ -207,8 +209,6 @@ export default function FraudPage() {
           }
         />
       )}
-
-      {error && flags && <InlineError message={error} />}
     </div>
   );
 }

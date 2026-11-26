@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Button,
   Card,
@@ -112,9 +113,11 @@ export default function SourcesPage() {
         </form>
       </Card>
 
+      {error && rows?.length ? <RefreshBanner onRetry={load} /> : null}
+
       {loading && !rows ? (
         <LoadingCard label="Loading sources…" />
-      ) : error && !rows ? (
+      ) : error && !rows?.length ? (
         <ErrorState message={error} onRetry={load} />
       ) : rows?.length ? (
         <Card className="!p-0">

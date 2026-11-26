@@ -3,6 +3,7 @@ import { api, downloadBlob } from "../../api.js";
 import { useDebounced } from "../../hooks/useDebounced.js";
 import { useToast } from "../../components/Toast.jsx";
 import Modal from "../../components/Modal.jsx";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Button,
   Card,
@@ -45,6 +46,8 @@ export default function GridPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [filterError, setFilterError] = useState("");
+  const [filterRetry, setFilterRetry] = useState(0);
 
   const dq = useDebounced(q, 300);
   const dCity = useDebounced(city, 300);
@@ -77,13 +80,18 @@ export default function GridPage() {
   }, [load]);
 
   useEffect(() => {
-    api("/api/admin/sources", { role: "admin" })
-      .then(setSources)
-      .catch(() => {});
-    api("/api/admin/surveys", { role: "admin" })
-      .then(setFilterSurveys)
-      .catch(() => {});
-  }, []);
+    let active = true;
+    setFilterError("");
+    Promise.all([
+      api("/api/admin/sources", { role: "admin" }).then((d) => active && setSources(d)),
+      api("/api/admin/surveys", { role: "admin" }).then((d) => active && setFilterSurveys(d)),
+    ]).catch((err) => {
+      if (active) setFilterError(err.message);
+    });
+    return () => {
+      active = false;
+    };
+  }, [filterRetry]);
 
   async function exportView(fmt) {
     setExporting(true);
@@ -337,7 +345,22 @@ export default function GridPage() {
         </div>
       </div>
 
-      {error && !rows ? (
+      {filterError && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          Failed to load filters —{" "}
+          <button
+            type="button"
+            onClick={() => setFilterRetry((n) => n + 1)}
+            className="min-h-11 font-semibold underline"
+          >
+            retry
+          </button>
+        </div>
+      )}
+
+      {error && rows?.length ? <RefreshBanner onRetry={load} /> : null}
+
+      {error && !rows?.length ? (
         <ErrorState message={error} onRetry={load} />
       ) : loading && !rows ? (
         <Card aria-busy="true">

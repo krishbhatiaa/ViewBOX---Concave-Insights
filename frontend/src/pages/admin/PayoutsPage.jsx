@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
+import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Button,
   Card,
@@ -67,9 +68,11 @@ export default function PayoutsPage() {
         description="Survey payments and referral bonuses. Ops approves each row before it can be marked Paid."
       />
 
+      {error && rows?.length ? <RefreshBanner onRetry={load} /> : null}
+
       {loading && !rows ? (
         <LoadingCard label="Loading payouts…" />
-      ) : error && !rows ? (
+      ) : error && !rows?.length ? (
         <ErrorState message={error} onRetry={load} />
       ) : rows?.length ? (
         <>
