@@ -19,8 +19,10 @@ def auth(role):
     """Factory for the two route guards: member tokens and admin tokens."""
 
     def dep(authorization: str = Header(None)):
-        t = sec.read_token((authorization or "").replace("Bearer ", ""))
-        if not t or t["role"] != role:
+        parts = (authorization or "").strip().split()
+        token = parts[1] if len(parts) == 2 and parts[0].lower() == "bearer" else None
+        t = sec.read_token(token)
+        if not t or t.get("role") != role:
             raise HTTPException(401, "Please log in again.")
         return t
 

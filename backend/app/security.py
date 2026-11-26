@@ -2,6 +2,9 @@ import base64, hashlib, hmac, json, os, secrets, time
 from fastapi import HTTPException
 
 SECRET = os.getenv("APP_SECRET", "dev-secret-change-me").encode()
+ALLOWED_ALGORITHMS = ["HS256"]
+TOKEN_ROLES = ("member", "admin")
+CLOCK_SKEW_SECONDS = 30
 
 def sanitize_param(value: str | None, limit: int = 64) -> str:
     """Strip CRLF/semicolon/NUL from a user-supplied attribution value."""
@@ -24,7 +27,8 @@ def verify_link(kind: str, token: str | None):
     return value if hmac.compare_digest(sig, _sig(kind + ":" + value)) else None
 
 def make_token(sub, role: str, ttl=86400) -> str:
-    p = base64.urlsafe_b64encode(json.dumps({"sub": sub, "role": role, "exp": time.time() + ttl}).encode()).decode()
+    payload = {"alg": "HS256", "sub": sub, "role": role, "exp": time.time() + ttl}
+    p = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     return f"{p}.{_sig(p)}"
 
 def read_token(tok: str):
@@ -32,7 +36,11 @@ def read_token(tok: str):
         p, sig = tok.rsplit(".", 1)
         if not hmac.compare_digest(sig, _sig(p)): return None
         d = json.loads(base64.urlsafe_b64decode(p))
-        return d if d["exp"] > time.time() else None
+        if d.get("alg") not in ALLOWED_ALGORITHMS: return None
+        if d.get("sub") in (None, "") or d.get("role") not in TOKEN_ROLES: return None
+        exp = float(d["exp"])
+        if time.time() - CLOCK_SKEW_SECONDS >= exp: return None
+        return d
     except Exception:
         return None
 
