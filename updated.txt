@@ -1,458 +1,753 @@
 ================================================================================
-VIEWBOX PANEL SYSTEM — FULL PROJECT STATUS (updated.txt)
-Generated: 2026-11-26 | Repo: C:\Users\Admin\Desktop\ViewBOX1\viewbox
-Purpose: searchable record of what is DONE, what TECH is used, and every known
-         GAP. Grep this file for "GAP:", "TODO", "NOT BUILT", "UNTESTED".
+VIEWBOX PANEL SYSTEM — FULL PROJECT STATUS / BUILD RECORD (updated.txt)
+Generated: 2026-11-26
+Repo: C:\Users\Admin\Desktop\ViewBOX1\viewbox
+Local HEAD: 9822d9d (security: pin audited dependencies and document honest security posture)
+Branch: main
+Local history: 58 commits
+Remote: https://github.com/krishbhatiaa/ViewBOX---Concave-Insights.git (configured without a named origin)
+Purpose: searchable factual record of what was built, the tech used, the methods
+         used to build it, validation evidence, and honest prototype limits.
 ================================================================================
 
+PART 0 — EXECUTIVE SUMMARY
 --------------------------------------------------------------------------------
-PART 0 — TECH STACK (verified against package/requirements files)
+ViewBOX is a full-stack referral survey panel prototype:
+
+  * FastAPI backend with SQLite persistence, HMAC-signed member/admin tokens,
+    OTP-style login, eligibility rules, referral lifecycle, payouts, fraud flags,
+    CSV import, Meta webhook lead intake, Google Sheets sync, audit log, touch
+    event log, and pluggable rate limiting.
+  * React SPA with mobile-first member portal and admin dashboard, routes for
+    login/signup/profile/home/referrals and 10 admin screens, error boundaries,
+    toasts, modals, theme toggle, signed attribution capture, QR download,
+    Meta webhook simulator, charts, and batch payout approval.
+  * 103 backend tests pass serially; frontend production build passes; pip-audit
+    reports no known vulnerabilities with the pinned dependency set.
+  * Everything is pinned for repeatability; the runtime still needs a fresh
+    clean-machine setup proof, CI, frontend tests, Redis for multi-worker rate
+    limits, real OTP/payments, and production secret management.
+  * This is a prototype. It is not claimed to be unhackable.
+
+Working tree state at generation: this updated.txt rewrite is the only intended
+uncommitted change. All code commits are committed; P3 was pushed through
+ad6f08c, but SEC1-SEC10 (70ee711..9822d9d) remain local because no push was
+requested.
+
+--------------------------------------------------------------------------------
+PART 1 — TECH STACK (verified against requirements.txt and package.json)
 --------------------------------------------------------------------------------
 BACKEND
-  Language:      Python (bytecode on disk = CPython 3.12; requirements header
-                 claims 3.13 — GAP: doc inconsistency)
-  Framework:     FastAPI 0.165.0 (chosen for Pydantic validation + /docs)
-  ORM:           SQLAlchemy 2.1.9 (session-scoped, autoflush=False)
-  Validation:    Pydantic 2.14.4 (bodies AND query params; Literal types)
-  Server:        Uvicorn 0.54.0
-  DB:            SQLite (sqlite:///./viewbox.db; check_same_thread=False hardcoded)
-  Migrations:    NONE — only a runtime _ensure_columns() ALTER TABLE shim
-                 (backend/app/main.py:29-45). GAP: no Alembic.
-  Tests:         pytest 9.2.0 (37 tests, backend only) + httpx 0.28.1 TestClient
-  Excel export:  openpyxl 3.1.5
-  HTTP (LLM):    httpx
-  Crypto:        stdlib hmac/hashlib/secrets (HMAC-SHA256 links, PBKDF2 passwords)
-  Pinned:        requirements.txt pins ALL direct + transitive deps
-                 (fastapi, uvicorn, SQLAlchemy, pydantic, python-multipart,
-                  httpx, pytest, openpyxl, starlette, pydantic_core, ...)
-  Env config:    backend/.env.example (APP_SECRET, DATABASE_URL, FRONTEND_URL,
-                 SIGNUP_IP_LIMIT, META_WEBHOOK_SECRET, LLM_API_KEY/BASE_URL/MODEL,
-                 REFERRAL_BONUS)
+  Language:       Python (requirements header says Python 3.13; local bytecode
+                  and pyvenv.cfg observed as CPython 3.12.10 — verify interpreter)
+  Framework:      FastAPI 0.165.0
+  Server:         Uvicorn 0.54.0
+  ORM:            SQLAlchemy 2.1.9, session per request, autoflush=False
+  Validation:     Pydantic 2.14.4 + pydantic_core 2.50.5 (+ Literal enums)
+  Database:       SQLite by default: sqlite:///./viewbox.db; check_same_thread=False
+  Migrations:     None. Runtime _ensure_columns() ALTER TABLE shim in main.py.
+  HTTP client:    httpx 0.28.1 (tests + rule suggestion LLM call)
+  Multipart:      python-multipart 0.0.34
+  Excel export:   openpyxl 3.1.5, et_xmlfile 2.0.0
+  Sheets:         gspread 6.2.1, google-auth 2.40.3 (lazy imports)
+  QR:             qrcode 8.2, Pillow 13.0.0 (lazy import in QR endpoint)
+  Tests:          pytest 9.2.0, iniconfig 2.3.1, packaging 26.3, pluggy 1.7.0
+  Crypto:         stdlib hmac/hashlib/secrets: HMAC-SHA256 links/tokens,
+                  PBKDF2-HMAC-SHA256 password hashing, constant-time compares
+  Transitives:    starlette 1.10.0, annotated-types 0.8.0, typing_extensions 4.16.0,
+                  typing-inspection 0.4.5, anyio 4.16.0, h11 0.16.0, httpcore 1.0.9,
+                  idna 3.20, certifi 2026.11.20, click 8.5.1, annotated-doc 0.0.7,
+                  opentelemetry-api 1.45.2, Pygments 2.21.0, colorama 0.4.6
+  Config source:  backend/.env.example + os.getenv defaults
+  Dependency audit: python -m pip_audit -r requirements.txt passes clean; Pillow
+                  was upgraded 10.2.0 -> 13.0.0 in SEC10 after 65 advisories.
 
 FRONTEND
-  Language:      JavaScript (JSX, no TypeScript)  GAP: no TS
-  Framework:     React 18.3.1
-  Router:        react-router-dom 6.30.x (BrowserRouter, needs server SPA fallback)
-  Build:         Vite 6.4.6 (dev proxy /api -> localhost:8000, hardcoded)
-  Styling:       Tailwind CSS 4.3.5 via @tailwindcss/vite (v4 @theme syntax)
-  State:         None (no Redux/Zustand/React Query) — plain useState/useEffect
-  HTTP:          raw fetch wrapper (frontend/src/api.js), no axios
-  Icons:         inline SVGs (no icon lib)
-  Tests/Lint:    NONE — no ESLint/Prettier/Jest/Vitest/CI. GAP: zero FE tests.
-  Build output:  frontend/dist/ (gitignored; backend serves it with SPA fallback)
-                 Last built 2026-11-25, current with source.
+  Language:       JavaScript + JSX (no TypeScript)
+  Framework:      React 18.3.1, react-dom 18.3.1
+  Router:         react-router-dom 6.30.x (BrowserRouter; backend SPA fallback required)
+  Build tool:     Vite 6.x (@vitejs/plugin-react 4.x)
+  Styling:        Tailwind CSS 4.x via @tailwindcss/vite, v4 @theme tokens
+  State:          Plain useState/useEffect/localStorage/sessionStorage; no Redux,
+                  Zustand, TanStack Query, or global store
+  HTTP:           Raw fetch wrapper in frontend/src/api.js; no axios
+  Icons:          Inline SVG components; no icon library
+  Tests/Lint:     No npm test script, no ESLint, Prettier, Jest, Vitest, or CI
+  Dist:           frontend/dist/ is gitignored; backend serves it in production mode
 
-DATABASE (SQLite, 13 tables — all present in models.py and design/db_diagram.dot)
-  sources             id, name(uniq), type, unique_slug(uniq), created_at
-  members             id, phone(uniq,idx), name, dob, gender, city, income_range,
-                      interests, source_id FK, referrer_id FK(self),
-                      first_touch_source_id FK, created_at, is_flagged, ip, device_id
-  surveys             id, title, description, status(default 'live'), deadline,
-                      quota, amount(Float), created_at
-  survey_rules        id, survey_id FK, rule_type, operator, value,
-                      strict_or_flexible(default 'strict')
-  eligibility_results id, member_id FK, survey_id FK, result, reason_text, computed_at
-                      GAP: no DB unique on (member,survey) — app-level upsert only
-  referrals           id, referrer_id FK(null), referred_member_id FK(uniq),
-                      stage(default 'Lead'), failure_reason, updated_at
-  completions         id, member_id FK, survey_id FK(nullable for imports),
-                      completed_at, quality_check_passed
-  payouts             id, member_id FK, survey_id FK, referral_id FK(null),
-                      amount(Float), status(default 'Pending'), approved_by, approved_at
-  import_logs         id, filename, total_rows, fixed_count, skipped_count,
-                      error_details_json, created_at
-  meta_leads          id, lead_id(uniq), form_id, campaign_id, ad_id, received_at,
-                      raw_payload_json, member_id FK(nullable => needs review)
-  admin_overrides     id, member_id FK, survey_id FK, overridden_by, reason, created_at
-                      GAP: no DB unique on pair — 409 enforced in code only
-  fraud_flags         id, member_id FK, flag_type, details, status(default 'open'),
-                      created_at, reviewed_by, reviewed_at
-  admin_users         id, email(uniq), password_hash, created_at
-  GAP: no ON DELETE cascade on any FK; no audit-log table; money stored as Float.
+DATABASE
+  SQLite file:    backend/viewbox.db exists locally and is gitignored
+  Design:         SQLAlchemy declarative models; pragmas enable foreign keys
+  Constraints:    unique indexes, cascade deletes, check constraints, Numeric(10,2)
+  Schema drift:   handled by create_all() + idempotent _ensure_columns() shim
+
+TOOLING / METHOD
+  Iterative commits: 58 commits from scaffold through P3 and SEC hardening.
+  Validation:        pytest serial only; npm run build; pip-audit; static tests
+                     assert frontend strings, repo hygiene, headers, tokens, etc.
+  Git:               conventional feat/fix/docs/test/chore messages in current work.
+  Secrets:           only .env.example committed; never real credentials.
 
 --------------------------------------------------------------------------------
-PART 1 — API SURFACE (31 endpoints, backend/app/routers/*)
+PART 2 — BACKEND ARCHITECTURE AND SOURCE MAP
 --------------------------------------------------------------------------------
-PUBLIC / AUTH (routers/auth.py)
-  POST /api/otp/request        mock OTP in response body; per-IP limit first
-  POST /api/login              OTP login -> 24h HMAC token; 404 unknown phone,
-                               400 bad OTP, 429 after 5 attempts/10 min
-  POST /api/signup             member + referral row + fraud checks; 409 dup phone
-                               (+ duplicate_signup flag); notes explain ignored links
-  GET  /api/links/resolve      prefill signup: {source, referrer, needs_fallback}
-  GET  /api/sources/public     "How did you hear about us?" dropdown
+ENTRYPOINT
+  backend/app/main.py
+    * Creates FastAPI app, includes all routers, bootstraps create_all(), applies
+      _ensure_columns() idempotent schema shim, enables SQLite FK pragma.
+    * CORS allowlist exactly FRONTEND_URL plus http://localhost:5173 with
+      allow_credentials=True.
+    * Adds baseline security headers on every response:
+      X-Content-Type-Options: nosniff
+      X-Frame-Options: DENY
+      Referrer-Policy: no-referrer
+      Content-Security-Policy: conservative prototype policy.
+    * Global exception handler logs correlation id + exception type only and
+      returns a generic 500 with correlation_id (no stack trace to client).
+    * Serves frontend/dist with a path-traversal guard and SPA deep-link fallback;
+      api/* misses return JSON 404 instead of index.html.
+    * /docs and /openapi.json are available for API exploration.
 
-MEMBER (routers/member.py, all require member token)
-  GET  /api/me                 profile + masked phone + next_eligible_date + referral_link
-  GET  /api/surveys            live surveys + eligibility (every result persisted)
-  GET  /api/me/status          stage + completions + payouts (payment status)
-  GET  /api/me/referrals       friends' stages, masked phones, bonus status
+CORE MODULES
+  backend/app/security.py
+    * HMAC-SHA256 signed source/referral values with kind separation and
+      96-bit truncation.
+    * HMAC-signed app tokens: base64url JSON {sub, role, exp, iat?}; 24h TTL;
+      constant-time verification.
+    * PBKDF2-HMAC-SHA256 password hashing (100k iterations, random 8-byte salt).
+    * OTP generation/verification helpers with 6-digit demo OTP, 300s expiry,
+      5 attempts/10 minutes per phone.
+  backend/app/deps.py
+    * Strict Bearer parsing, get_db, member/admin guards, link signing helpers,
+      normalized phone, client IP extraction.
+  backend/app/eligibility.py
+    * Pure rule evaluation + persistence of eligibility_results.
+  backend/app/fraud.py
+    * duplicate_signup, self_referral, burst_signups, referral_ring detection.
+  backend/app/schemas.py
+    * Pydantic request/response models, including member-facing phone masking.
+  backend/app/seed.py
+    * Demo reset/seed: drop_all + create_all, then inserts admin, sources,
+      members, surveys, completion, payouts, fraud examples, touches.
 
-ADMIN (routers/admin.py, all require admin token except login)
-  POST /api/admin/login        email + PBKDF2 password -> token
-  GET/POST /api/admin/sources  list w/ signed link; create (201, slug collision -> -2)
-  GET/POST /api/admin/surveys  list w/ rules+completion counts; create (201)
-  POST /api/admin/suggest-rules  Tier-3 LLM/heuristic rule candidates; NEVER saved
-  GET  /api/admin/members      grid: ?q&source_id&city&status&survey_id (422/404 validated)
-  GET  /api/admin/members/export  CSV or XLSX of current view (format=csv|xlsx)
-  POST /api/admin/referrals/{rid}/stage  Lead|Fit|Completed|Failed (+reason/survey/quality)
-  GET  /api/admin/payouts      ledger newest-first
-  POST /api/admin/payouts/{pid}/status  Approved|Paid (409 Paid-before-Approved)
-  GET  /api/admin/source-stats funnel per source (signups/fit/completed)
-  GET  /api/admin/meta-leads   lead list (limit 1-500)
-  GET  /api/admin/meta-leads/stats  totals + by_campaign + by_ad
-  GET  /api/admin/fraud-flags  ?status=open|Cleared|Confirmed|all
-  POST /api/admin/fraud-flags/{fid}/review  Clear/Confirm (never deletes)
-  POST /api/admin/fraud/scan   retroactive burst+ring scan
-  GET/POST/DELETE /api/admin/overrides  manual eligibility override CRUD
+ROUTERS
+  backend/app/routers/auth.py      public/auth/link endpoints
+  backend/app/routers/member.py    member profile/surveys/status/referrals/QR
+  backend/app/routers/admin.py     admin CRUD, grid, export, payouts, fraud, audit
+  backend/app/routers/importer.py  CSV dry-run and commit import
+  backend/app/routers/meta.py      Meta webhook lead endpoint
 
-IMPORT (routers/importer.py)
-  POST /api/admin/import?dry_run=true  multipart CSV; preview writes nothing;
-                                       returns {total, imported, fixed, warned, skipped, details[]}
-
-META WEBHOOK (routers/meta.py)
-  POST /api/meta/lead          dedupe by lead_id; HMAC X-Hub-Signature-256 or
-                               X-Webhook-Token when META_WEBHOOK_SECRET set;
-                               OPEN with warning when unset. Invalid lead still
-                               stored for review then 422.
-
-SPA FALLBACK (main.py)
-  GET /{path}                  serves frontend/dist with path-traversal guard;
-                               api/* -> 404 JSON
-
-AUTH MODEL
-  member token (localStorage 'mt') / admin token (localStorage 'at'),
-  both = base64url JSON {sub, role, exp} + HMAC. TTL 24h. No refresh, no revocation.
-  GAP: tokens in localStorage; no logout endpoint; 401 silently clears token
-       with no user message (frontend/src/api.js:66).
-
---------------------------------------------------------------------------------
-PART 2 — CORE LOGIC (backend/app/)
---------------------------------------------------------------------------------
-ELIGIBILITY (eligibility.py, 55 lines) — check ORDER:
-  1. admin override        -> Approved ("manual review")
-  2. cool-off (90d from last quality-passed completion) -> Rejected (+date)
-  3. survey.status != live -> Rejected ("not open")
-  4. deadline passed       -> Rejected ("closed on {date}")
-  5. quota reached (counts ALL completions) -> Rejected ("reached its quota")
-  6. rules: strict fail -> immediate Rejected; flexible fail -> collect
-  7. any flexible fails -> Waitlisted (+ "Ops may still approve you")
-  8. else Approved
-  GAP: quota counts non-quality-passed completions; cool-off counts only
-       quality-passed — asymmetric. survey.status is immutable after creation
-       (no edit/close endpoint), so check 3 is effectively dead code.
-  COOL_OFF_DAYS = 90. record_result() upserts eligibility_results in app code.
-
-REFERRAL PIPELINE (services/referral.py)
-  set_stage(): Completed is IRREVERSIBLE (409); Failed requires reason (422);
-  Completed requires survey_id (422) + no duplicate completion (409);
-  quality passed -> Completion + payout(survey.amount) + referrer bonus payout
-    (REFERRAL_BONUS env, default 100, idempotent per referral);
-  quality FAILED -> forced Failed + reason + NO payouts.
-  Bonus = flat 100. Payout.status: Pending -> Approved (gate) -> Paid (409 if skip).
-
-FRAUD (fraud.py)
-  Flag types: duplicate_signup (from auth.py), self_referral, burst_signups
-              (IP or device, >=3 in 24h, BURST_MIN=3), referral_ring (cycle detect).
-  add_flag is idempotent (no dup while open); flags NEVER deleted (open -> Cleared|Confirmed).
-  loopback/non-IP strings never burst-flag. scan() is retroactive + idempotent.
-  GAP: imported CSV rows never run on_signup (no ip/device), so only ring scan
-       can ever flag them, and only via manual POST /fraud/scan.
-  GAP: _burst_flags is O(n^2); _ring_flags loads all members.
-
-CSV IMPORT (services/importer.py, 206 lines)
-  10 date formats + 2-digit-year pivot (rejects <=1920 or future, never guesses);
-  income mapped to 3 buckets (<5L/5-10L/10L+) with warn; gender m/f normalised;
-  in-file AND cross-DB duplicate phone detection; unknown sources auto-created
-  (type 'imported'); referred_by matched in second pass (self-referral -> warn,
-  missing referrer -> warn 'not imported'); joined_on -> member.created_at;
-  last_survey_completed_on -> Completion(survey_id=null) -> starts cool-off;
-  dry_run previews and writes NOTHING; single commit; per-row details[] report.
-  Tested against the REAL data/viewbox_respondents_sample.csv (189 rows).
-
-LLM RULE SUGGESTION (services/rule_suggest.py, Tier 3 choice (b))
-  _llm(): OpenAI-compatible chat/completions (LLM_API_KEY, default gpt-4o-mini,
-          temp 0, 15s timeout, strict JSON-array prompt); returns None on any
-          failure -> _heuristic() keyword fallback (age regex, 30-city list,
-          gender keywords, income ranges). _validate() filters through RuleIn.
-  NEVER persists — admin must save via POST /api/admin/surveys.
-
-SECURITY (security.py + deps.py + meta.py)
-  HMAC-SHA256 signed links (96-bit trunc, kind-separated 'src:'/'ref:',
-    constant-time compare, forged -> ignored with note);
-  App tokens: HMAC JSON + exp, constant-time verify;
-  Admin passwords: PBKDF2-HMAC-SHA256, 100k iters, 8-byte salt;
-  OTP: 6-digit, 300s expiry, 5 attempts/10 min per phone -> 429;
-  Phone masking 98XXXXXX21 on all member-facing responses;
-  Per-IP rate limit: sliding window, SIGNUP_IP_LIMIT default 60/hour per bucket
-    ('otp','signup'); IN-PROCESS dict (Redis needed for prod);
-  Meta webhook: X-Hub-Signature-256 = HMAC-SHA256(secret, raw body) OR
-    X-Webhook-Token; open+warning if secret unset;
-  CORS: FRONTEND_URL (+5173 dev) only;
-  SQLAlchemy parameterised queries; Pydantic on bodies + query params;
-  Global exception handler returns generic 500 (no stack traces);
-  SPA path-traversal guard.
-  GAP: no RBAC (single admin role), no audit logs, no CSP/HSTS/security headers,
-       no HTTPS enforcement, in-process rate limits (single worker), no CSRF
-       beyond bearer-in-header. Never claim "unhackable".
-
-SEED (seed.py) — idempotent via drop_all + create_all
-  Admin: admin@concave.test / admin123
-  8 sources (WhatsApp Mumbai, Staff Priya, Instagram, Facebook, Website,
-             Referral, LinkedIn, Meta Ads)
-  7 members 9000000001-07 (Priya referrer; Rohan Lead, Sneha Fit, Karan Completed,
-             Vikram Failed; Meera Instagram; Anita age 17)
-  3 surveys (Zomato +10d/50/300, Titan +12d/40/400, ICICI +14d/30/500)
-  1 completion (Karan x Zomato 20d ago -> cool-off demo)
-  2 payouts (Karan 300 Paid; Priya bonus 100 Pending)
+SERVICES
+  backend/app/services/audit.py          sanitized append-only audit log writer
+  backend/app/services/ratelimit.py      RateLimiter interface, in-memory and Redis swap
+  backend/app/services/importer.py       messy CSV normalization + formula-injection guard
+  backend/app/services/referral.py       stage transitions, completions, payouts, rollback
+  backend/app/services/grid.py           member grid rows + CSV/XLSX export
+  backend/app/services/rule_suggest.py   OpenAI-compatible LLM rule suggester + offline fallback
+  backend/app/services/sheets.py         Google Sheets push/pull with sync log
 
 --------------------------------------------------------------------------------
-PART 3 — FRONTEND (frontend/src, 25 files, ~128 KB)
+PART 3 — DATABASE MODEL (16 tables in backend/app/models.py)
 --------------------------------------------------------------------------------
-STRUCTURE
-  main.jsx        captures ?src/?ref/first BEFORE render -> localStorage
-                  (vb_src, vb_first, vb_ref)
-  App.jsx         all routes + ToastProvider + HomeOrLogin + NotFound
-  api.js          ApiError, tokens (mt/at), parseDetail, deviceId (X-Device-Id),
-                  fetch wrapper, downloadBlob
-  index.css       Tailwind v4 @import + @theme tokens + base resets + focus ring
-  lib/auth.js     sessionStorage vb_pending {phone,otp} across signup steps
-  lib/stages.js   STAGE_EXPLANATION, PAYOUT_LABEL, INCOME/GENDER options
-                  GAP: STAGE_TONE + toneForStage are DEAD CODE (never imported)
-  hooks/useDebounced.js  300ms (used only by GridPage)
-  components/ui.jsx      design system: Card, Button(+spinner), Field, Input(fwdRef),
-                  Select, Textarea, Tag, StageTag, Skeleton, LoadingCard,
-                  EmptyState, ErrorState, InlineError, CopyButton, Table, PageHeader,
-                  StatCard, TONES/BAR_TONES (light+dark pairs)
-  components/Toast.jsx   bottom-center aria-live stack, 4.5s auto-dismiss
-  components/Modal.jsx   Escape/backdrop close, role=dialog, bottom-sheet mobile
+  1. sources
+     id, name(unique), type, unique_slug(unique), created_at.
+     Meta source is slug-collision-safe.
 
-ROUTES
-  /                     HomeOrLogin (token? -> /home else /login)
-  /signup               HomeOrLogin (preserves search)
-  /login                PhonePage (2-step: phone -> OTP, demo OTP autofilled)
-  /profile              ProfilePage (outside layout; redirect if no pending)
-  [MemberLayout]        /home (HomePage), /referrals (ReferralsPage)
-  /admin                AdminLoginPage (pre-fills demo creds)
-  [AdminLayout]         /admin/members (GridPage 20KB), /admin/surveys,
-                        /admin/sources, /admin/stats, /admin/import,
-                        /admin/meta-leads, /admin/payouts, /admin/fraud
-  *                     NotFound
+  2. members
+     id, phone(unique, indexed), name, dob, gender, city, income_range,
+     interests, source_id FK, referrer_id self-FK, first_touch_source_id FK,
+     created_at, is_flagged, ip, device_id.
 
-PAGES — loading/error/empty states (CHECKLIST §2 ticked)
-  Member: PhonePage, ProfilePage, HomePage, ReferralsPage — all 3 states OK.
-  Admin:  AdminLogin, Grid, Surveys, Sources, Stats, Import, MetaLeads,
-          Payouts, Fraud — all have LoadingCard/ErrorState/EmptyState.
-  360px + desktop tested; >=44px touch targets (min-h-11); visible focus;
-  labels on every input; light + dark (system-driven only, NO toggle);
-  inline plain-word field errors; toasts on mutations; copy-to-clipboard;
-  sticky filter bar (--admin-header-h via ResizeObserver) + Export buttons;
-  prompt()/alert() replaced by Modal (verified zero matches).
+  3. surveys
+     id, title, description, status (default live), deadline, quota,
+     amount Numeric(10,2), created_at.
 
-NOT CALLED BY FRONTEND (by design): POST /api/meta/lead (webhook only).
+  4. survey_rules
+     id, survey_id FK CASCADE, rule_type, operator, value,
+     strict_or_flexible default strict.
 
---------------------------------------------------------------------------------
-PART 4 — TESTS (backend/tests/, 37 tests, ~25s)
---------------------------------------------------------------------------------
-  auth/signup (6):  otp_login_and_me, auth_required, signup_with_signed_source_link,
-                    signup_fallback_how_heard, signup_duplicate_phone_is_flagged,
-                    referral_link_and_masked_view
-  eligibility (5):  approved_rejected_waitlisted, cool_off_blocks_and_shows_date,
-                    full_quota_rejects_new_members, past_deadline_rejects,
-                    age_bounds_17_35_40 (17 out, 35 inclusive, 40 out)
-                    [ADDED 2026-11-26 in commit a6e45fe — closes prior quota/deadline gap]
-  override (1):     admin_manual_override (create/dup409/delete)
-  grid/export (4):  grid_search_filter_export, eligibility_results_are_saved,
-                    grid_filter_by_survey_result, export_excel_and_csv
-  referral/payout(2): stage_flow_and_payout_approval_gate (all 422/409 gates),
-                    source_stats
-  meta (4):         create_dedupe_invalid, webhook_signature_when_secret_set,
-                    leads_admin_view_and_campaign_stats, leads_endpoints_require_auth
-  import (3):       preview_then_commit, real_sample_file (189-row), dates_referrer_unknown_source
-  fraud (3):        device_burst_flags_and_review, ip_burst_via_forwarded_header,
-                    referral_ring_scan
-  security (6):     signed_links_reject_forged_tokens, otp_rate_limit_five_attempts,
-                    signup_ip_rate_limit, every_admin_route_requires_auth (loops all),
-                    query_param_validation, spa_deep_links_and_api_404
-  tier3 (3):        suggest_rules_offline_heuristic, rejects_bad_input,
-                    llm_shape_is_filtered
-  conftest: session-scoped client+admin; temp DB per run (viewbox_pytest.db);
-            SIGNUP_IP_LIMIT=1000 for suite.
-  GAP: running pytest twice in PARALLEL collides on the shared temp DB
-       (UNIQUE admin_users / table sources already exists). Run serially only.
-  GAP: .pytest_cache/lastfailed still lists 16 failures from an OLD parallel
-       collision run — stale, not a real failure. Delete .pytest_cache to clear.
-  GAP: no frontend tests, no UI tests (README admits this), no CI to enforce.
-  TEST MATRIX COVERAGE (CHECKLIST §11.3): age 17 [x] age 40 [x] wrong city
-    strict/flexible [x] full quota [x] past deadline [x] cool-off [x]
-    duplicate phone [x] forged link [x] bad CSV row [x] duplicate Meta lead [x]
-    -> ALL 10 covered by pytest now.
+  5. eligibility_results
+     id, member_id FK CASCADE, survey_id FK CASCADE, result, reason_text,
+     computed_at; UNIQUE(member_id, survey_id) added in SEC-era fixes.
+
+  6. referrals
+     id, referrer_id nullable self-FK, referred_member_id unique FK,
+     stage default Lead, failure_reason, updated_at.
+
+  7. completions
+     id, member_id FK CASCADE, survey_id nullable FK, completed_at,
+     quality_check_passed.
+
+  8. payouts
+     id, member_id FK CASCADE, survey_id FK, referral_id nullable FK,
+     amount Numeric(10,2), status default Pending, approved_by, approved_at.
+
+  9. import_logs
+     id, filename, total_rows, fixed_count, skipped_count,
+     error_details_json, created_at.
+
+ 10. meta_leads
+     id, lead_id unique, form_id, campaign_id, ad_id, received_at,
+     raw_payload_json, member_id nullable FK.
+
+ 11. admin_overrides
+     id, member_id FK, survey_id FK, overridden_by, reason, created_at;
+     UNIQUE(member_id, survey_id) added in SEC-era fixes.
+
+ 12. fraud_flags
+     id, member_id FK, flag_type, details, status default open, created_at,
+     reviewed_by, reviewed_at.
+
+ 13. admin_users
+     id, email unique, password_hash, created_at.
+
+ 14. audit_logs
+     id, actor, action, entity, entity_id, details_json, created_at.
+     Append-only; never edited or deleted by app code.
+
+ 15. sheet_sync_logs
+     id, direction, status, details_json, created_at.
+
+ 16. touch_events
+     id, member_id nullable FK, source_id FK, kind, referrer_id nullable,
+     raw_params_json, created_at.
+     Provides first/last-touch attribution evidence and event log.
+
+Design artifacts: design/01_user_flow.md and design/02_database.md were frozen
+on Day 2 around the original 13-table baseline; design/03_changes_day5.md records
+later addenda. Graphviz .dot/.png/.svg versions live in design/. The plotted ER
+diagram therefore predates audit_logs, sheet_sync_logs, touch_events, and some
+constraint/type hardening; models.py is authoritative for the current schema.
 
 --------------------------------------------------------------------------------
-PART 5 — DOCS / DESIGN / DATA
+PART 4 — API SURFACE (40 router routes + SPA catch-all)
 --------------------------------------------------------------------------------
-README.md (128 lines, exactly 9 sections, verified)
-  §1 Overview  §2 Tech stack  §3 Setup (~2 min, UNTESTED on clean machine)
-  §4 Demo logins  §5 Features (24-row table, honest statuses)  §6 DB design
-  §7 Endpoints + Meta sample + research paragraph  §8 Decisions (source conflict,
-  first-vs-last touch, Razorpay 6-step plan, security posture, honest gaps)
-  §9 Known issues + Tier-4 roadmap
-  Claims checked: 37 tests [count correct], 189-row CSV [correct], React18/
-  Tailwind4/Vite6 [correct], pinned deps [correct], no secrets [correct].
-  IMPRECISIONS: "blank rows" in CSV (actually blank fields, 0 blank lines);
-  import counts (163/26, 53/110) unverified statically; "pytest passes" has no CI.
+PUBLIC / AUTH (backend/app/routers/auth.py)
+  POST /api/otp/request              Demo OTP returned in response; per-IP limit.
+  POST /api/login                    OTP verify -> 24h signed member token.
+  POST /api/signup                   Member, referral, source/touch attribution,
+                                     duplicate/fraud checks.
+  GET  /api/links/sign               Sanitizes src/ref/first and returns signed values
+                                     for client persistence (SEC1).
+  GET  /api/links/resolve            Prefills signup with source/referrer/fallback flag.
+  GET  /api/sources/public            "How did you hear about us?" source dropdown.
 
-CHECKLIST.md (100 lines) — UNCHECKED ITEMS (the true remaining-work list):
-  §7.3  Setup tested on a clean machine, < 5 min
-  §9    Meaningful messages + real author + PUBLIC REPO push
-  §10   Walkthrough video (all 4 timestamped segments, none recorded)
-  §11   Fresh git clone QA; demo data on first run; test matrix line;
-        Day 2 email; Day 7 email; email subject/recipients line
-  (§11 "No secrets..." is now TICKED and verified accurate.)
-  All of §1-§6 and §8 are fully ticked.
+MEMBER (backend/app/routers/member.py; require member token)
+  GET  /api/me                       Profile + masked phone + next eligible date +
+                                     referral link; response_model=MeOut.
+  GET  /api/me/referral-qr            QR code PNG for referral link.
+  GET  /api/surveys                   Live surveys + computed eligibility; response
+                                     models mask phone-derived fields.
+  GET  /api/me/status                 Stage, completion, and payout status; StatusOut.
+  GET  /api/me/referrals              Referred members, stages, masked phones, bonus.
 
-design/ (10 files, frozen-then-addendum structure)
-  README.md index; 01_user_flow.md (Mermaid, frozen Day 2);
-  02_database.md (Mermaid ER, 13 relations, frozen Day 2);
-  03_changes_day5.md (post-freeze addenda: 5 new admin screens, suggest-rules,
-    meta-leads, UI/UX pass — correct pattern, never edits 01/02);
-  user_flow.{dot,png,svg} + db_diagram.{dot,png,svg} (Graphviz sources).
-  db_diagram.dot's 13 tables EXACTLY match models.py's 13 tables.
+ADMIN AUTH / AUDIT / TOUCHES (backend/app/routers/admin.py)
+  POST /api/admin/login               Email + PBKDF2 password -> 24h admin token.
+  GET  /api/admin/audit               Audit log list (sanitized details).
+  GET  /api/admin/touches             Touch event log list.
+
+ADMIN SOURCES / SURVEYS
+  GET    /api/admin/sources            List with signed public/referral links.
+  POST   /api/admin/sources            Create source; 201, unique slug handling.
+  GET    /api/admin/surveys            List surveys with rules/completion counts.
+  POST   /api/admin/surveys            Create survey with rules; 201.
+  PATCH  /api/admin/surveys/{sid}     Edit status, deadline, quota, amount.
+  POST   /api/admin/suggest-rules     Tier-3 LLM/heuristic candidates; never auto-saved.
+
+ADMIN GRID / EXPORT / SHEETS
+  GET  /api/admin/members              Filter by q, source_id, city, status, survey_id.
+  GET  /api/admin/members/export       CSV or XLSX of current filtered view.
+  GET  /api/admin/sheets/status        Google Sheets sync state.
+  POST /api/admin/sheets/push          Push member grid to configured Sheet.
+  POST /api/admin/sheets/pull          Pull rows from configured Sheet.
+
+ADMIN REFERRALS / PAYOUTS
+  POST /api/admin/referrals/{rid}/stage  Lead|Fit|Completed|Failed with reason,
+                                          survey, quality flag; forced failure on
+                                          quality fail; rollback on system error.
+  GET  /api/admin/payouts                Ledger newest-first.
+  POST /api/admin/payouts/batch-approve  Batch approve selected or all Pending
+                                          payouts; rejects non-Pending; returns
+                                          approved_count and total_amount (P3).
+  POST /api/admin/payouts/{pid}/status   Pending -> Approved -> Paid with 409 guard
+                                          against Paid-before-Approved.
+
+ADMIN ANALYTICS / FRAUD / OVERRIDES
+  GET  /api/admin/source-stats        Funnel per source: signups/fit/completed.
+  GET  /api/admin/meta-leads          Lead list; limit 1-500.
+  GET  /api/admin/meta-leads/stats    Totals + by_campaign + by_ad.
+  GET  /api/admin/fraud-flags         Filter by status open|Cleared|Confirmed|all.
+  POST /api/admin/fraud-flags/{fid}/review  Clear or Confirm; never deletes.
+  POST /api/admin/fraud/scan          Retroactive burst + ring scan; idempotent.
+  GET  /api/admin/overrides           List manual eligibility overrides.
+  POST /api/admin/overrides           Create override; 201; DB unique pair.
+  DELETE /api/admin/overrides/{oid}   Delete override.
+
+IMPORT / WEBHOOK / SPA
+  POST /api/admin/import              multipart CSV; dry_run=true previews without
+                                      writes; commit writes in one transaction;
+                                      returns total/imported/fixed/warned/skipped/details.
+  POST /api/meta/lead                 Meta webhook; dedupe lead_id; requires
+                                      X-Hub-Signature-256 when META_WEBHOOK_SECRET
+                                      is set; dev-open with warning when unset;
+                                      invalid lead stored then returns 422.
+  GET  /{path}                        Serves frontend/dist with traversal guard;
+                                      api/* misses are JSON 404.
+
+--------------------------------------------------------------------------------
+PART 5 — CORE BACKEND METHODS AND BUSINESS RULES
+--------------------------------------------------------------------------------
+AUTH AND TOKENS
+  * Demo OTP is generated server-side and returned in the response for local
+    walkthroughs; production would need SMS/email delivery.
+  * Tokens are stateless HMAC JSON blobs with 24h expiry. deps.py strictly parses
+    Bearer tokens, rejects non-HS256 algorithms, verifies sub/role claims, allows
+    role member/admin only, and permits 30s clock skew.
+  * localStorage keys: mt for member, at for admin; tokens are sent in headers,
+    not cookies. No refresh, logout endpoint, or server-side revocation.
+
+ELIGIBILITY (order matters)
+  1. Admin override -> Approved ("manual review").
+  2. Cool-off: 90 days from last quality-passed completion -> Rejected with date.
+  3. Survey status != live -> Rejected ("not open").
+  4. Deadline passed -> Rejected ("closed on ...").
+  5. Quota reached -> Rejected; quota counts only quality-passed completions.
+  6. Rules: strict failure rejects immediately; flexible failures are collected.
+  7. Any flexible failure -> Waitlisted with "Ops may still approve you".
+  8. Otherwise Approved.
+  * Every evaluation is persisted in eligibility_results via app-level upsert.
+  * Fail-closed (SEC8): exceptions return Rejected / "System error — please retry".
+
+REFERRAL + PAYOUT PIPELINE
+  * Stages: Lead -> Fit -> Completed / Failed.
+  * Completed is irreversible (409 if repeated).
+  * Failed requires a failure reason (422 otherwise).
+  * Completed requires survey_id and rejects duplicate completions.
+  * Quality-passed completion creates Completion + member payout(survey.amount) +
+    referrer bonus payout (REFERRAL_BONUS, default 100), idempotent per referral.
+  * Quality-failed forces Failed with reason and no payouts.
+  * Payout status: Pending -> Approved -> Paid; skipping Approved is 409.
+  * Batch approve accepts explicit IDs or all Pending, returns count and total.
+
+FRAUD
+  * duplicate_signup flagged on duplicate phone.
+  * self_referral flagged when referrer phone == referred phone.
+  * burst_signups flags >=3 signups from same IP or device within 24h; loopback
+    and non-IP strings are excluded.
+  * referral_ring detects cycles in referrer graph.
+  * Flags are idempotent while open and never deleted; status moves to
+    Cleared or Confirmed. scan() is retroactive and idempotent.
+  * Imported rows lack IP/device, so only ring scan can flag them.
+
+CSV IMPORT
+  * Accepts 10 date formats with 2-digit-year pivot; rejects impossible/future dates.
+  * Income normalized to <5L / 5-10L / 10L+ with warnings.
+  * Gender m/f/female normalized.
+  * Detects in-file and cross-DB duplicate phones.
+  * Unknown free-text sources auto-created with type imported and unique slugs.
+  * referred_by resolved in a second pass; self-referral and missing referrer warn.
+  * joined_on becomes member.created_at; last_survey_completed_on creates a
+    Completion with nullable survey_id and starts the cool-off.
+  * dry_run writes nothing; commit is one transaction; details[] explains fixes.
+  * SEC5 neutralizes leading = + - @ in free-text cells with an apostrophe to
+    stop spreadsheet formula injection; phone/date fields are excluded.
+
+RULE SUGGESTION
+  * POST /api/admin/suggest-rules calls an OpenAI-compatible chat/completions
+    endpoint when LLM_API_KEY is configured (default gpt-4o-mini, temp 0,
+    15s timeout, strict JSON array prompt).
+  * Any failure falls back to _heuristic(): age regex, 30-city list, gender
+    keywords, income ranges.
+  * _validate() filters candidates through RuleIn; nothing is persisted until
+    an admin explicitly saves via POST /api/admin/surveys.
+
+META LEADS
+  * POST /api/meta/lead dedupes by lead_id and stores raw payload JSON.
+  * Per-campaign and per-ad stats power the admin Meta Leads screen.
+  * SEC3 enforces Meta HMAC X-Hub-Signature-256: sha256=<hex> via
+    hmac.compare_digest when META_WEBHOOK_SECRET is configured; old
+    X-Webhook-Token path was removed; missing secret remains an explicit dev-open
+    path with a warning.
+
+RATE LIMITS
+  * OTP attempts are per phone; signup/OTP IP limits use a sliding window.
+  * SEC4 extracted RateLimiter / InMemoryRateLimiter / RedisRateLimiter with
+    build_rate_limiter() and warn_if_inmemory_multiworker().
+  * .env.example documents RATE_LIMIT_BACKEND=memory|redis and WEB_CONCURRENCY.
+  * In-memory backend is single-process only.
+
+AUDIT / LOG HYGIENE
+  * audit.log() writes append-only rows for payout, referral, override, fraud,
+    sheet sync, touch, and other important actions.
+  * SEC9 strips CR/LF, redacts sensitive keys, and masks 10-digit phone numbers
+    in log details.
+  * Global exception handler avoids stack traces and secrets in responses/logs.
+
+SECURITY HEADERS / CORS
+  * Headers added to all responses: nosniff, DENY, no-referrer, conservative CSP.
+  * CORS allowlist is FRONTEND_URL plus http://localhost:5173; credentials enabled.
+
+SEEDED DEMO DATA
+  * Admin: admin@concave.test / admin123.
+  * 8 sources, 7 member phones 9000000001-07, 3 surveys (Zomato, Titan, ICICI),
+    one completed survey for cool-off, payouts including a Paid and Pending bonus,
+    fraud examples (ring + same-device pair), and touch events.
+  * python -m app.seed is destructive: drop_all + create_all + reseed.
+
+--------------------------------------------------------------------------------
+PART 6 — FRONTEND IMPLEMENTATION
+--------------------------------------------------------------------------------
+ROUTES (frontend/src/App.jsx)
+  /                          HomeOrLogin; redirects to /home or /login
+  /signup                    Preserves ?src/?ref and redirects to /login
+  /login                     PhonePage: 2-step phone -> OTP, demo OTP autofilled
+  /profile                   ProfilePage outside layout; requires pending signup
+  MemberLayout:
+    /home                    HomePage: eligibility, status, payout/next-date view
+    /referrals               ReferralsPage: referral link, QR download, stages
+  /admin                     AdminLoginPage with demo credentials prefill
+  AdminLayout:
+    /admin/members           GridPage: search/filter, audit, eligibility, export
+    /admin/surveys           SurveysPage: create/edit rules, status/deadline/quota/amount
+    /admin/sources           SourcesPage: create sources, copy signed links
+    /admin/stats             StatsPage: funnel + quality score + Sheets status/actions
+    /admin/import            ImportPage: CSV dry-run and commit with detail report
+    /admin/meta-leads        MetaLeadsPage: lead list + per-campaign/per-ad stats
+    /admin/meta-simulator    MetaSimulator: no-curl webhook testing UI
+    /admin/payouts           PayoutsPage: ledger + single/batch approve modal
+    /admin/fraud             FraudPage: flag queue and review actions
+  *                          NotFound
+
+CORE FRONTEND FILES
+  frontend/src/main.jsx        React mount; sanitizes ?src/?ref/first before render,
+                               calls /api/links/sign, stores signed values.
+  frontend/src/App.jsx         Routes + ToastProvider + ErrorBoundary + theme apply.
+  frontend/src/api.js          ApiError, token storage, fetch wrapper, device id,
+                               parseDetail, downloadBlob, 401 handling.
+  frontend/src/index.css       Tailwind v4 import, @theme tokens, base reset, focus ring.
+  frontend/src/lib/auth.js     Session pending signup helpers and attribution cleanup.
+  frontend/src/lib/stages.js   Stage explanation, payout labels, income/gender options.
+  frontend/src/hooks/useDebounced.js  Debounce used by GridPage filtering.
+  frontend/src/components/ui.jsx     Shared Card/Button/Field/Input/Select/Table/
+                               StatCard/StageTag/EmptyState/ErrorState/etc.
+  frontend/src/components/Toast.jsx  aria-live toast stack, auto-dismiss.
+  frontend/src/components/Modal.jsx  role=dialog, Escape/backdrop close, mobile sheet.
+  frontend/src/components/ErrorBoundary.jsx Catches render errors instead of blank page.
+  frontend/src/components/ThemeToggle.jsx Applies persisted vb_theme system/light/dark.
+  frontend/src/pages/RefreshBanner.jsx Inline refresh/error banner.
+
+FRONTEND METHODS / UX
+  * Mobile-first 360px layout, >=44px touch targets, visible focus, labels on inputs.
+  * Loading, empty, and error states across member and admin screens.
+  * Inline field errors and toast feedback for mutations.
+  * Copy-to-clipboard for referral/source links.
+  * Sticky admin filter bar measured with ResizeObserver (--admin-header-h).
+  * Modal replaced prompt()/alert() for destructive actions, including batch payouts.
+  * Light/dark/system theme persisted in localStorage vb_theme.
+  * SPA fallback allows direct deep links; Vite dev proxy sends /api to localhost:8000.
+  * No frontend unit test or lint runner; validation is production build plus backend
+    static assertions in test_frontend.py / test_repo_hygiene.py.
+
+--------------------------------------------------------------------------------
+PART 7 — SECURITY WORK ACTUALLY COMPLETED (SEC1-SEC10)
+--------------------------------------------------------------------------------
+SEC1 — sanitize and sign attribution on client and server (70ee711)
+  * sanitize_param() strips CR, LF, semicolon, NUL and caps length at 64.
+  * sign_link()/verify_link() sign sanitized src/ref/first values.
+  * GET /api/links/sign added; main.jsx sanitizes URL params before persistence.
+
+SEC2 — harden token verification (2e5270a)
+  * ALLOWED_ALGORITHMS = ["HS256"], TOKEN_ROLES = ("member", "admin"),
+    CLOCK_SKEW_SECONDS = 30.
+  * Rejects alg none variants, expired tokens, missing sub/role, unknown roles.
+
+SEC3 — Meta webhook HMAC (b9d4bd6)
+  * META_WEBHOOK_SECRET configured -> require X-Hub-Signature-256 sha256 hex,
+    compared with hmac.compare_digest against the raw body.
+  * Old X-Webhook-Token path removed; unset secret remains dev-open with warning.
+
+SEC4 — rate limiter extraction (90aa699)
+  * RateLimiter interface, in-memory implementation, Redis swap path documented.
+  * .env.example documents RATE_LIMIT_BACKEND and WEB_CONCURRENCY.
+
+SEC5 — CSV formula-injection sanitization (1e5fde5)
+  * safe_text(), norm_cell(), FORMULA_PREFIXES, VALIDATED_FIELDS.
+  * Leading = + - @ neutralized with apostrophe in free-text import cells.
+
+SEC6 — server-side PII masking (571a0d2)
+  * Response models in schemas.py: MeOut, SurveyOut, StatusOut, ReferralOut, etc.
+  * _PhoneMasked serializer masks phone numbers on member-facing responses.
+
+SEC7 — headers and CORS verification (7a8d8bf)
+  * nosniff, DENY, no-referrer, conservative CSP on responses.
+  * CORS exact allowlist and credentials checked by tests.
+
+SEC8 — fail-closed error handling (5152b6b)
+  * Eligibility exceptions return Rejected / "System error — please retry".
+  * Referral status and payout status changes rollback and raise safe HTTP errors.
+
+SEC9 — log hygiene (1d26c3b)
+  * audit.log() strips newlines, redacts sensitive keys, masks 10-digit phones.
+  * Exception handler returns generic 500 correlation id; logs only type/correlation.
+
+SEC10 — dependency and documentation hardening (9822d9d)
+  * Pillow pinned to 13.0.0; pip-audit clean.
+  * README Security posture documents enforced controls and prototype-only limits.
+  * Explicit documentation line: "This is a prototype; it is not claimed to be
+    unhackable."
+
+HONEST PROTOTYPE LIMITS
+  * Real OTP/SMS, production email, payment gateway, RBAC, HTTPS enforcement,
+    CSRF strategy for cookie auth, multi-worker Redis rate limits, secret manager,
+    and formal threat model are not implemented.
+  * Do not describe this project as unhackable or production-secure.
+
+--------------------------------------------------------------------------------
+PART 8 — VALIDATION EVIDENCE
+--------------------------------------------------------------------------------
+BACKEND TESTS
+  Command: cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
+  Final result: 103 passed.
+  Test modules present (24 + conftest):
+    test_admin_null_checks.py, test_admin_surveys.py, test_api.py,
+    test_attribution_security.py, test_audit.py, test_auth.py,
+    test_batch_payouts.py, test_db_constraints.py, test_eligibility.py,
+    test_failclosed.py, test_foreign_keys.py, test_frontend.py,
+    test_import.py, test_log_hygiene.py, test_meta.py, test_money.py,
+    test_ratelimit.py, test_referral_channel.py, test_repo_hygiene.py,
+    test_seed_demo.py, test_security_headers.py, test_sheets.py,
+    test_token_security.py, test_touch.py, conftest.py
+  Coverage highlights:
+    * OTP/login/signup, auth guards, admin-route 401 loop.
+    * Signed links, forged-link rejection, attribution channel params.
+    * Token algorithm/claim hardening and OTP/signup rate limits.
+    * Eligibility approved/rejected/waitlisted, cool-off, quota, deadline, age bounds.
+    * Overrides, manual review, DB unique constraints.
+    * Grid filters, eligibility persistence, CSV/XLSX export.
+    * Referral stages, payout approval gate, batch approval.
+    * Meta lead dedupe, HMAC signature, admin lead views, auth.
+    * CSV preview/commit, real 189-row sample, date/referrer/unknown source handling.
+    * Fraud flags, burst detection via forwarded header, ring scan.
+    * Sheets status behavior, touch logging, seed demo data.
+    * Security headers, log sanitization, fail-closed behavior, repo hygiene.
+    * Static frontend assertions (no prompt/alert, theme/error boundary/modal tokens).
+  Tests are serial-only because they share a temporary SQLite file; do not run
+  parallel pytest processes against the same test DB.
+
+FRONTEND BUILD
+  Command: cd frontend && npm run build
+  Final result: passed. Output: frontend/dist (gitignored).
+
+DEPENDENCY AUDIT
+  Command: cd backend && python -m pip_audit -r requirements.txt
+  Final result: No known vulnerabilities.
+
+GIT HYGIENE
+  Before this updated.txt rewrite: working tree clean.
+  Tracked files exclude .env, *.db, __pycache__, *.pyc, .venv, node_modules,
+  frontend/dist, logs, and .pytest_cache via .gitignore.
+
+--------------------------------------------------------------------------------
+PART 9 — DOCS, DESIGN, AND DATA ARTIFACTS
+--------------------------------------------------------------------------------
+README.md
+  * 9 sections: overview, tech stack, setup, demo logins, feature table, DB design,
+    endpoints/research, decisions, known issues/roadmap.
+  * Security posture subsection added in SEC10 with enforced controls, prototype
+    limitations, dependency audit note, and explicit non-claim line.
+  * Demo credentials and walkthrough guidance are documented.
+
+CHECKLIST.md
+  * Tracks P0 core, UI/UX, code quality, security posture, Tier-2, Tier-3, docs,
+    design, delivery, QA, and final sign-off.
+  * Most implementation boxes are ticked. Remaining delivery items include fresh
+    clone setup proof, walkthrough video, final email/QA sign-off, and pushing
+    unpushed SEC commits if requested.
+
+design/
+  README.md
+  01_user_flow.md
+  02_database.md
+  03_changes_day5.md
+  user_flow.dot / user_flow.png / user_flow.svg
+  db_diagram.dot / db_diagram.png / db_diagram.svg
+  Frozen Day-2 diagrams use Mermaid/Graphviz; changes are appended, not rewritten.
 
 data/
-  viewbox_respondents_sample.csv — 189 data rows, 13 cols, deliberately messy
-    (mixed date formats, +91 phones, M/F/female genders, 1 duplicate phone,
-     2 blank phones, free-text sources, 89 blank completion dates)
-  messy_sample.csv — 6 toy rows (padded name, invalid date 1990-02-30, dup phone)
+  viewbox_respondents_sample.csv
+    189 data rows, 13 columns, deliberately messy: mixed date formats, +91 phones,
+    M/F/female gender values, duplicate phone, blank phone cells, free-text sources,
+    many blank completion dates.
+  messy_sample.csv
+    6 small rows with padded names, invalid date, duplicate phone for quick demos.
 
-STRAY ROOT FILES (GAP)
-  db_diagram.png + user_flow.png at repo ROOT are byte-different duplicates of
-  design/*.png, added by commit 00f4c16, referenced nowhere. Should be deleted.
-
---------------------------------------------------------------------------------
-PART 6 — GIT
---------------------------------------------------------------------------------
-  22 commits, 2026-11-20 -> 2026-11-26, single branch main, clean tree.
-  Local HEAD: a6e45fe "test: quota, past-deadline, and age-boundary..."
-  Remote: public repo https://github.com/krishbhatiaa/ViewBOX---Concave-Insights
-          EXISTS and is PUBLIC, but remote main = 636d3bf -> local is 6 commits
-          AHEAD (acbddf9, 8fa0384, 327c9bb, 68235a8, 566185f, a6e45fe UNPUSHED).
-  GAP: no named 'origin' remote — URL oddly stored in branch.main.remote.
-       git push --dry-run resolves and would fast-forward 636d3bf..a6e45fe.
-  Author: repo config = Krish Bhatia <142397285+krishbhatiaa@users.noreply.github.com>
-          BUT 15/22 older commits are authored "Developer <dev@example.com>"
-          (identity fixed only from acbddf9 on) -> §9 real-author partly unmet.
-  Messages: last 7 use feat:/fix:/docs:/test:/chore:; 15 earlier are vague
-          ("Fixes on backend", "ReadME Inclusion") -> §9 partly unmet.
-  NO tags, NO stashes.
+ROOT
+  .gitignore covers local artifacts.
+  updated.txt is this record.
+  design/ diagrams supersede older root copies where present.
 
 --------------------------------------------------------------------------------
-PART 7 — SECURITY / HYGIENE (verified clean)
+PART 10 — GIT HISTORY / DELIVERY STATUS
 --------------------------------------------------------------------------------
-  git ls-files: NO .env, NO .db, NO __pycache__, NO .pyc. Only .env.example tracked.
-  .gitignore (33 lines) covers .env*, __pycache__, *.py[cod], .venv, node_modules,
-  frontend/dist, *.db/*.sqlite, .pytest_cache, *.log, editor dirs.
-  Working tree clean; local artifacts (viewbox.db, .venv, dist, node_modules,
-  logs) all correctly ignored.
+  Total commits: 58, all on main, 2026-11-20 -> 2026-11-26.
+  Local HEAD: 9822d9d.
+  Remote main: ad6f08c; local is 10 commits ahead (SEC1-SEC10) and not pushed.
+  Remote URL is configured without a named origin remote.
+  No tags, no stashes.
+  Older 15 commits were authored Developer <dev@example.com>; newer commits use
+  Krish Bhatia <142397285+krishbhatiaa@users.noreply.github.com>.
 
---------------------------------------------------------------------------------
-PART 8 — CONSOLIDATED GAP REGISTER (search this for "GAP:")
---------------------------------------------------------------------------------
-PROCESS / DELIVERY GAPS (checklist-unchecked)
-  GAP-01  §7.3 fresh-clone setup untested (< 5 min claim unverified)
-  GAP-02  §9 public repo: 6 commits unpushed; 15 old commits wrong author;
-          15 old messages non-conventional; no named origin remote
-  GAP-03  §10 walkthrough video: NOT recorded (0/4 segments)
-  GAP-04  §11 final QA: fresh clone, demo-data-first-run, test matrix tick,
-          Day 2 / Day 7 emails not sent (recipients miloni@/genis@concaveinsights.com)
-  GAP-05  no CI (.github/workflows absent) — 37 tests never enforced automatically
-  GAP-06  stray root PNGs (db_diagram.png, user_flow.png) duplicate design/
-
-FUNCTIONAL GAPS (product)
-  GAP-10  no survey edit/close/delete endpoint — status/deadline/quota/amount
-          immutable after create; eligibility's status!='live' check is dead code
-  GAP-11  no member profile-update endpoint (profile only at signup)
-  GAP-12  no logout / token revocation / refresh (24h stateless HMAC)
-  GAP-13  no payment gateway (Razorpay plan documented in README §8.3 only;
-          approval gate IS built)
-  GAP-14  no visit/touch log (first-vs-last touch stored, not a full log)
-  GAP-15  CSV import skips fraud checks (no ip/device for imported rows)
-  GAP-16  quota counts all completions; cool-off counts only quality-passed
-  GAP-17  OTP attempt counter never clears on success (5th-attempt success still locked)
-  GAP-18  no Alembic migrations (runtime ALTER shim only)
-  GAP-19  no audit-log table; no RBAC (single admin role)
-
-DATA-INTEGRITY GAPS
-  GAP-20  no DB unique on eligibility_results(member,survey) or admin_overrides(pair)
-  GAP-21  no ON DELETE rules on any FK; some db.get(...).attr without null-check
-          (admin.py:117,233-235, meta.py:161) -> potential 500 (caught by handler)
-  GAP-22  meta.py:68 creates Source 'meta-ads' without slug collision check
-  GAP-23  money stored as Float (precision risk)
-  GAP-24  connect_args check_same_thread hardcoded -> Postgres URL would break
-
-PERFORMANCE GAPS
-  GAP-25  grid_rows runs evaluate() per member (N+1 cool-off+quota queries)
-  GAP-26  _burst_flags O(n^2); _ring_flags loads all members
-  GAP-27  rate limits/OTP in process memory (single worker; Redis needed)
-
-FRONTEND GAPS
-  GAP-30  401 silently clears token, no expiry message/redirect (api.js:66)
-  GAP-31  refresh errors swallowed on 9/10 list pages (error && !rows pattern);
-          only FraudPage surfaces mid-session errors
-  GAP-32  GridPage filter dropdowns fetch with .catch(()=>{}) — silent failure
-  GAP-33  no dark-mode toggle / theme persistence (system prefers-color-scheme only)
-  GAP-34  dead design tokens in @theme (--color-accent/ink/surface, radius-card,
-          spacing-card unused and absent from built CSS)
-  GAP-35  dead code: STAGE_TONE, toneForStage, tokens.clearAll, unreachable
-          HomePage branches, StageTag duplicate Approved check, ReferralsPage
-          redundant ternary
-  GAP-36  no error boundary (render throw = blank page); no favicon/meta description
-  GAP-37  demo secrets in UI: admin@concave.test/admin123 hint, member range
-          9000000001-07, OTP echoed into DOM (intentional for demo, risky to ship)
-  GAP-38  navigate() called during render in MemberLayout/AdminLayout (anti-pattern)
-  GAP-39  <a href> full reloads in 3 places; NotFound uses window.location.assign
-  GAP-40  STAGE_EXPLANATION lacks Waitlisted/Pending/Approved (empty <p> renders)
-  GAP-41  /login not guarded when already authenticated
-  GAP-42  hardcoded dev proxy localhost:8000, no VITE_* env usage
-  GAP-43  no frontend tests, no ESLint/Prettier
-  GAP-44  frontend/dist gitignored — fresh clone needs npm run build before
-          backend can serve the SPA (README "just run uvicorn" path incomplete)
-
-TEST/TOOLING GAPS
-  GAP-50  parallel pytest runs collide on shared temp DB (run serially)
-  GAP-51  .pytest_cache/lastfailed holds 16 STALE failures from a collision run
-  GAP-52  pyflakes not installed in env (checklist claims "pyflakes clean")
-  GAP-53  requirements header says Python 3.13; bytecode is 3.12
-  GAP-54  UI/empty/loading/error states manually checked only (no UI tests)
-  GAP-55  runtime numbers (import 163/26, 53/110, pytest pass) have no CI evidence
-
-DOC GAPS
-  GAP-60  README §3 "~2 min" setup untested (see GAP-01)
-  GAP-61  README says CSV has "blank rows" — actually blank fields, 0 blank lines
-  GAP-62  CHECKLIST §2 screen list is stale — omits Payouts/Fraud/Meta-leads
-          screens (10 screens listed, 13 exist)
+COMMIT LEDGER (oldest -> newest)
+  41cf187 chore: scaffold repo, requirements, env example
+  b80dbaf feat(core): models, HMAC/OTP/JWT-style security, eligibility engine
+  b7571f4 feat(api): signup, referrals, admin grid, import, Meta lead endpoint, seed
+  0aecf42 feat(ui): mobile-first portal + admin panel, messy CSV sample
+  d62ea83 docs: 9-section README
+  2121d70 docs(design): user flow + DB diagram as PNG/SVG with Graphviz sources
+  00f4c16 Core Backend Structure with userflow and DB FLOW
+  ac8bef4 docs: master checklist
+  783c6f2 ReadME Inclusion
+  2463076 fix(sources): unique slugs, link resolve endpoint, typed referrer, real first/last touch, free-text source type
+  3f79b52 feat: completion records + cool-off, survey/rules admin UI, member status panel, payout rows with approval gate
+  8ff0137 Fixing backend files Because it was not retrieving data properly
+  c6841ae Merge pull request #1 from krishbhatiaa/master
+  13cd581 Fixes on backend
+  9ff6d87 eligibility check and grid end points secured for core level architecture
+  636d3bf Security Endpoints and Splitting done
+  acbddf9 chore: set real git identity, tick done checklist items (frontend folders, React port)
+  8fa0384 fix(ui): profile link states, 44px touch targets, measured sticky bar with export, contrast tokens, input ref forwarding
+  327c9bb feat(admin): LLM rule suggestion with offline heuristic fallback (edit-before-save)
+  68235a8 feat(admin): Meta leads view with per-campaign and per-ad breakdown
+  566185f docs(design): 03_changes_day5.md for post-Day-2 design changes; tick design checklist
+  a6e45fe test: quota, past-deadline, and age-boundary eligibility cases; tick secrets box
+  d822933 Updated Part of commits for backend
+  9f159e7 fix: reset OTP attempt counter and delete entry on successful verify
+  2fc472d feat: add PATCH /api/admin/surveys/{id} for status, deadline, quota, amount
+  92fd4cc fix: quota and cool-off both count only quality-passed completions
+  4572717 fix: null-check db.get calls and slug-collision-safe Meta source creation
+  162db8f fix: show session-expired toast and redirect on 401 instead of silent clear
+  db47f70 fix: add error boundary and complete stage explanation map
+  dbdae2d fix: surface refresh errors as inline banners, stop swallowing filter errors
+  9cdfc3e fix: add DB unique constraints on eligibility and override pairs
+  d9d6176 fix: store money as Numeric(10,2) instead of Float
+  c955874 fix: move auth redirects into useEffect in layouts
+  5d289ab chore: remove dead code and unused design tokens
+  9aa026d chore: remove stray root diagrams and stale pytest cache
+  6e4fa8d feat: add persisted light/dark/system theme toggle
+  0364fff fix: enable SQLite foreign key enforcement via PRAGMA
+  b9ab763 fix: add ON DELETE CASCADE for survey rules and member children
+  10facab feat: add append-only audit log and sheet sync log tables
+  99e9034 feat: Google Sheets push/pull endpoints with sync logging
+  34ae0f5 feat: show Google Sheets sync status card on admin dashboard
+  d4e5b2c feat: append-only audit log for payout, referral, override, fraud actions
+  8c64208 feat: add touch event log for attribution evidence
+  2a6a577 feat: add Meta webhook simulator page for no-curl testing
+  e1c23d8 feat: seed referral ring and same-device pair for fraud-scan demo
+  0597a20 feat: referral link channel params and QR download
+  3319b0e feat: show completion-rate quality score and auto-insight on source dashboard
+  ad6f08c feat: batch approve payouts with confirmation modal
+  70ee711 security: sanitize and sign attribution params on both client and server
+  2e5270a security: harden token verification with algorithm allowlist and claim checks
+  b9d4bd6 security: enforce Meta webhook HMAC signature when secret is configured
+  90aa699 security: extract rate limiter behind an interface with Redis swap path documented
+  1e5fde5 security: sanitize CSV cells against formula injection on import
+  571a0d2 security: assert server-side PII masking on all member-facing responses
+  7a8d8bf security: add baseline security headers and verify CORS allowlist
+  5152b6b security: remove fail-open exception handling in eligibility and payouts
+  1d26c3b security: sanitize log fields and strip secrets from error logs
+  9822d9d security: pin audited dependencies and document honest security posture
 
 --------------------------------------------------------------------------------
-PART 9 — WHAT IS UNAMBIGUOUSLY DONE (for contrast)
+PART 11 — HOW TO RUN / VERIFY LOCALLY
 --------------------------------------------------------------------------------
-  [x] All 21 §1 core P0 items (OTP, sources, signed links, eligibility,
-      referrals, grid+export, source dashboard, import, Meta, completions->
-      cool-off, admin survey UI, profile step, eligibility_results, xlsx,
-      real-CSV test, first/last touch, source conflict, typed referrer, status)
-  [x] All §2 UI/UX items (10 screen states, 360px, 44px, focus, labels,
-      contrast, inline errors, toasts, copy buttons, sticky bar, tokens,
-      modal replacing prompt/alert, React port)
-  [x] All §3 code-quality items (routers/services split, FE folders, Pydantic
-      query validation, 37 tests, logging, pinned deps, no dead pyflakes debt)
-  [x] All §4 security-posture items (param SQL, HMAC, OTP, admin auth, CORS,
-      masking, Meta signature, IP rate limit, admin-route 401 loop, prod list)
-  [x] All 5 §5 Tier-2 items (import preview, override, fraud queue, payout
-      ledger, Meta leads view)
-  [x] §6 Tier 3 (b) LLM rule suggestion with offline fallback
-  [x] §7 README sections 1,2,4,5,6,7,8,9 + Meta research paragraph
-  [x] §8 design folder (frozen 01/02 + 03 addendum + PNG/SVG/dot diagrams)
-  [x] §11 "No secrets in repo" (verified)
-  [x] Test matrix: all 10 cases now covered by pytest (added a6e45fe)
+BACKEND (from C:\Users\Admin\Desktop\ViewBOX1\viewbox\backend)
+  python -m pip install -r requirements.txt
+  python -m app.seed                       # optional/destructive demo reset
+  uvicorn app.main:app --host 127.0.0.1 --port 8000
+  Open: http://127.0.0.1:8000/docs
+
+FRONTEND (from C:\Users\Admin\Desktop\ViewBOX1\viewbox\frontend)
+  npm install
+  npm run dev -- --host 127.0.0.1 --port 5173
+  Open: http://127.0.0.1:5173
+  Vite proxy: /api -> http://localhost:8000
+
+PRODUCTION-LIKE SPA
+  cd frontend && npm run build
+  cd ../backend && uvicorn app.main:app --host 127.0.0.1 --port 8000
+  Backend then serves frontend/dist with deep-link fallback.
+
+VALIDATION
+  cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
+  cd frontend && npm run build
+  cd backend && python -m pip_audit -r requirements.txt
+
+--------------------------------------------------------------------------------
+PART 12 — HONEST REMAINING WORK / PROTOTYPE GAPS
+--------------------------------------------------------------------------------
+DELIVERY
+  * SEC1-SEC10 commits are local only; push if and when requested.
+  * Fresh clone setup not proven end-to-end; README "~2 min" remains a claim.
+  * No CI, no walkthrough video, no final Day-2/Day-7 email proof.
+  * Remote has no named origin alias.
+
+PLATFORM
+  * No Alembic migrations; runtime ALTER shim only.
+  * SQLite default; check_same_thread hardcoded would need rework for Postgres.
+  * In-memory rate limits are single-process; Redis implementation is a documented
+    swap path, not enabled by default.
+  * No real OTP delivery, payment gateway, production secret manager, HTTPS
+    enforcement, or formal RBAC.
+  * Local Python header says 3.13 while local bytecode is 3.12.10.
+
+PRODUCT
+  * Survey status/deadline/quota/amount can now be patched; earlier immutable-status
+    limitation is resolved, but no delete/archive endpoint exists.
+  * No member profile update endpoint after signup.
+  * No logout/token revocation/refresh.
+  * Imported rows skip IP/device fraud checks; only retroactive ring scan can flag.
+  * Fraud scan is O(n^2) for bursts and loads all members for ring detection.
+  * Grid evaluates eligibility per row (N+1 style queries).
+
+TESTING
+  * Backend has 103 tests and passes serially; frontend still has no native tests.
+  * No UI automation, no lint, no CI enforcement.
+  * Parallel pytest runs can collide on the shared temp SQLite DB.
+
+DOCUMENTATION
+  * Design diagrams are frozen at the original 13-table baseline; authoritative
+    schema is models.py (16 tables).
+  * Some checklist lines may still omit newer screens such as Meta Simulator.
+  * README is honest but needs re-verification on a fresh machine.
+
+SECURITY POSTURE
+  * Implemented controls are listed in Part 7.
+  * This remains a prototype and is not claimed to be unhackable.
+
+--------------------------------------------------------------------------------
+PART 13 — LOCAL RUN VERIFICATION (2026-11-26)
+--------------------------------------------------------------------------------
+  Ports 8000 and 5173 were free before startup.
+
+  BACKEND
+    Command: cd backend && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+    Log: backend/uvicorn.log
+    Uvicorn process id observed: 23624
+    Result: application startup complete; running on http://127.0.0.1:8000.
+    Verified HTTP 200:
+      http://127.0.0.1:8000/docs
+      http://127.0.0.1:8000/openapi.json
+      http://127.0.0.1:8000/api/sources/public
+
+  FRONTEND
+    Command: cd frontend && npm run dev -- --host 127.0.0.1 --port 5173
+    Log: frontend/vite.log
+    Result: VITE v6.4.6 ready in 1977 ms.
+    Verified HTTP 200:
+      http://127.0.0.1:5173/
+    Vite proxy is available for /api calls to the backend on port 8000.
+
+  Both servers were left running when this record was finalized.
 ================================================================================
 END
 ================================================================================
