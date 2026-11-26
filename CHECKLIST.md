@@ -12,18 +12,23 @@ Scoring: Thinking 30% - UI/UX 30% - Code 20% - Git and Docs 20%. A flawless core
 - [x] Grid search-as-you-type, filters, CSV export of the current view
 - [x] Source dashboard (sign-ups / Fit / Completed)
 - [x] Messy CSV import never crashes, reports counts + reasons
-- [x] `POST /api/meta/lead` with dedupe + invalid handling
+- [x] `POST /api/meta/lead` with dedupe + invalid handling, verify handshake and Graph-style envelope
 - [x] **FIXED: marking "Completed" must write a `completions` row** (ask which survey + quality check passed), so the 3-month cool-off really triggers
 - [x] **Admin UI to create surveys + rules** (title, deadline, quota, amount, rules with Strict/Flexible)
 - [x] Profile as its own step right after first login (brief: "filled once after first login")
 - [x] Save every computed result to `eligibility_results`
 - [x] Grid status filter also supports Approved / Rejected / Waitlisted (per survey)
 - [x] Excel (.xlsx) export in addition to CSV (openpyxl)
-- [x] Test with the REAL `viewbox_respondents_sample.csv` (~200 rows); fix parser for its actual mess (dates, phones, gender, duplicates, blank rows, encoding)
+- [x] Test with the REAL `viewbox_respondents_sample.csv` (~200 rows); fix parser for its actual mess (dates, phones, gender, duplicates, blank fields, encoding)
 - [x] First touch vs last touch: first-seen link kept in browser, sent as `first_src`; `source_id` = last touch, `first_touch_source_id` = first touch (no separate touch log yet)
 - [x] Source-conflict case verified: Instagram link + typed referrer => source Instagram, referrer credited
 - [x] Typed referrer on the fallback form (matched by exact phone number, not ambiguous names)
 - [x] Member status screen shows Fit/Completed state + payment/bonus status so they need not call the team
+- [x] Survey list highlights normalized interest-tag matches; admin creates/edits interest tags
+- [x] Admin Referrals page lists/filters stages and moves Lead → Fit → Completed/Failed with confirmations
+- [x] Profile completeness guard redirects incomplete members to `/profile`; `PATCH /api/me` saves it
+- [x] Survey deadlines capped at 15 days from launch on create/edit, with inline server errors
+- [x] Meta verify handshake, wrapped `leadgen_id` envelope, `LeadFetcher` with Graph API/mock default, simulator format switch
 
 ## 2. UI/UX - 30% of score (P0)
 For EVERY screen confirm empty, loading and error states: 
@@ -42,7 +47,7 @@ For EVERY screen confirm empty, loading and error states:
 - [x] Split `main.py` into `routers/` (auth, member, admin, importer, meta), `schemas.py`, `services/` (grid, importer, referral), `deps.py`; `main.py` is a thin app factory
 - [x] Frontend folders: components, pages, hooks, api (or split JS modules)
 - [x] Pydantic validation on every endpoint, incl. query params (`Literal` statuses, `max_length` on search)
-- [x] pytest suite (37): eligibility outcomes + cool-off + quota + past deadline + age bounds, HMAC verify/forgery, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation
+- [x] pytest suite (125): eligibility outcomes + cool-off + quota + 15-day deadline + age bounds, interest matching, admin referrals, profile completeness, HMAC verify/forgery + Meta handshake, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + Graph envelope + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation, static frontend checks
 - [x] Logging for skipped rows / errors; friendly message to the user
 - [x] Pin versions in `requirements.txt`; seed script idempotent (drop + recreate)
 - [x] Remove dead code (pyflakes clean), short docstrings where the logic is non-obvious
@@ -50,7 +55,7 @@ For EVERY screen confirm empty, loading and error states:
 
 ## 4. Security posture (implement + document; never say "unhackable")
 - [x] SQLAlchemy parameterised queries, Pydantic validation, HMAC links, OTP limit, admin auth, CORS restricted, phone masking
-- [x] Meta endpoint: verify a shared token / `X-Hub-Signature-256` header (HMAC of raw body, when `META_WEBHOOK_SECRET` is set)
+- [x] Meta endpoint: verify a shared token at `GET /webhooks/meta` / `X-Hub-Signature-256` header (HMAC of raw body, when `META_WEBHOOK_SECRET` is set)
 - [x] Rate limit signup/IP (`SIGNUP_IP_LIMIT`, default 60/hour per bucket)
 - [x] Check admin routes all require auth (test loops all `/api/admin/*`)
 - [x] README: production list - Postgres, Redis (sessions/OTP), HTTPS, middleware rate limiting, audit logs, RBAC, CSP/HSTS
@@ -72,7 +77,7 @@ For EVERY screen confirm empty, loading and error states:
 - [x] 6 Database design + link to /design  - [x] 7 Endpoints each with method, URL, purpose, sample request + response
 - [x] 8 Decisions: source conflict, first vs last touch, payment gateway plan (Razorpay: approve -> API -> capture -> webhook -> Paid; failures via retries + polling) + security posture
 - [x] 9 Known issues + Tier 4 roadmap (ML analytics/forecasting, Postgres/Redis, production payments, LLM factors, audit logs, RBAC, security headers)
-- [x] Meta research paragraph: real lead ads send a webhook with a lead ID, then you fetch the form fields from Meta's Graph API; this mock accepts the fields directly
+- [x] Meta research paragraph: real lead ads send a webhook with a lead ID, then you fetch the form fields from Meta's Graph API; this accepts both that wrapped envelope with `LeadFetcher` and simple dev fields directly
 
 ## 8. /design folder (by end of Day 2)
 - [x] User flow + DB diagram (PNG/SVG)  - [x] Add "Create survey" screen only if built, otherwise remove from flow BEFORE Day 2 (built; noted in `03_changes_day5.md` §1 since `01` is frozen)
@@ -83,7 +88,7 @@ Re-create history in small commits over the days, for example:
 - Day 1: scaffold, models, design  - Day 2: auth/OTP, sources, signed links, push + email
 - Day 3: signup + profile + eligibility engine  - Day 4: referrals + admin grid/export + dashboard
 - Day 5: CSV import, Meta endpoint, UI states, tests  - Day 6: Tier 2 items  - Day 7: Tier 3, README, video
-- [ ] Meaningful messages (`feat:`, `fix:`, `docs:`, `test:`), real author name/email, public repo
+- [x] Meaningful messages (`feat:`, `fix:`, `docs:`, `test:`), real author name/email, public repo
 
 ## 10. Walkthrough video (3-5 min)
 - [ ] 0:00 run from scratch (clone, install, seed, start)  - [ ] 0:45 member flow via a source link, OTP, profile, surveys, eligibility reasons

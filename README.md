@@ -32,11 +32,13 @@ cd backend && python -m pytest
 ```
 Production-style run: `cd frontend && npm run build`, then start uvicorn — the backend serves the built app from `frontend/dist` at http://localhost:8000.
 
+Note: `backend/requirements.txt` says "Tested, pinned environment (Python 3.13, Windows)", but the validation bytecode/venv here was CPython 3.12.10; confirm with `python --version` if reproducing exactly.
+
 ## 4. Demo Logins and Test Data
 - Admin: `admin@concave.test` / `admin123`
 - Members (OTP is shown on screen): `9000000001` Priya (referrer), `…04` Karan (in cool-off), `…06` Anita (age 17 → Rejected), `…02`/`…03`/`…07` Priya's friends (Lead/Fit/Failed)
 - New signup: copy a link from Admin → Sources (`/signup?src=…`) or Priya's referral link from her home page
-- Messy import sample: `data/viewbox_respondents_sample.csv` — the real 189-row export (odd dates, `+91` phones, M/F/female genders, duplicate numbers, blank rows) — plus the tiny toy `data/messy_sample.csv`
+- Messy import sample: `data/viewbox_respondents_sample.csv` — the real 189-row export (odd dates, `+91` phones, M/F/female genders, duplicate numbers, blank fields) — plus the tiny toy `data/messy_sample.csv`
 - Meta sample: see section 7
 
 ## 5. Features
@@ -49,21 +51,23 @@ Production-style run: `cd frontend && npm run build`, then start uvicorn — the
 | Every computed result saved to `eligibility_results` (one row per member+survey, updated on recompute) | Done |
 | 3-month cool-off + re-eligibility date | Done |
 | Referral stages, failure reason, referrer dashboard, masked phone | Done |
-| Home with live surveys + interest highlight | Done |
+| Admin referrals list + stage workflow page (Lead → Fit → Completed/Failed with survey, quality check and reason) | Done |
+| Profile collected after first OTP; incomplete existing/imported members are redirected to `/profile` and save through `PATCH /api/me` | Done |
+| Home with live surveys + interest highlight from normalized comma-separated interest tags | Done |
 | Admin grid: search-as-you-type, filters, CSV **and Excel** export of current view; filter by survey result (Approved / Rejected / Waitlisted) with plain-language reason per member | Done |
 | Source dashboard (sign-ups / Fit / Completed) | Done |
 | Messy CSV import with count + per-row reasons | Done — dry-run preview, per-row fixed / warned / skipped report; tested against the real `data/viewbox_respondents_sample.csv` (189 rows → 163 imported, 26 skipped; seeded run: 53 fixed, 110 warned) |
 | Import preview before commit (dry-run, `?dry_run=true`) | Done — preview report, then Confirm import |
-| `POST /api/meta/lead` (dedupe, invalid flagged); HMAC webhook signature when `META_WEBHOOK_SECRET` is set | Done |
+| `GET /webhooks/meta` verify handshake; `POST /api/meta/lead` accepts simple dev fields or wrapped Meta envelope, dedupes, flags invalid leads, signs POSTs when `META_WEBHOOK_SECRET` is set, and fetches fields through `LeadFetcher` (Graph API or mock) | Done |
 | Empty / loading / error states | Done (manually checked, no UI tests) |
 | Fraud flags + review queue (dup phone, self-referral, device/IP bursts, referral rings) | Done — detection on signup + on-demand scan; queue at Admin → Fraud queue; flags never deleted (Cleared/Confirmed) |
 | Payout ledger / approval | Done — Payouts screen; Paid blocked until Approved (API-enforced) |
 | Admin manual override | Done — endpoint + “Override…” in the members grid; engine honours it |
-| Admin creates surveys + Strict/Flexible rules (UI) | Done |
+| Admin creates/edits surveys + Strict/Flexible rules and interest tags (UI); deadlines capped at 15 days from launch | Done |
 | Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | React + Vite + Tailwind frontend | Done |
-| Automated tests (pytest API suite, 37 tests: eligibility outcomes + cool-off + quota + past deadline + age bounds, HMAC link forgery, OTP + per-IP rate limits, messy import, Meta dedupe + webhook signature, admin-auth loop over every `/api/admin` route) | Done — `cd backend && python -m pytest` |
+| Automated tests (pytest API suite, 125 tests: eligibility outcomes + cool-off + quota + deadline cycle + age bounds, interest matching, admin referrals, profile completeness, HMAC link/Meta forgery + handshake, OTP + per-IP rate limits, messy import, Meta dedupe + Graph envelope, admin-auth loop over every `/api/admin` route, static frontend checks) | Done — `cd backend && python -m pytest` |
 | Meta leads admin view + per-campaign breakdown | Done - Admin ? Meta leads; `GET /api/admin/meta-leads` + `/stats` |
 | Tier 3 "wow" feature | Done - (b) LLM rule suggestion: Admin ? Surveys ? "Suggest rules" (LLM when `LLM_API_KEY` set, offline keyword fallback otherwise); suggestions are editable and only saved via Create survey |
 
@@ -77,12 +81,14 @@ Interactive docs at `/docs`. Key ones:
 |---|---|---|
 | POST | `/api/otp/request` `{phone}` | Mock OTP → `{otp,is_member}` |
 | POST | `/api/login`, `/api/signup` | Auth / create member (`src`,`ref`,`how_heard_source_id`) |
-| GET | `/api/me`, `/api/surveys`, `/api/me/referrals` | Member portal (phones masked) |
+| GET/PATCH | `/api/me`, `/api/surveys`, `/api/me/referrals`; `PATCH /api/me` | Member portal (phones masked); profile completion flag + save missing profile fields |
 | POST/GET | `/api/admin/login`, `/api/admin/sources` | Admin auth; sources + signed links |
 | GET | `/api/admin/members?q=&source_id=&city=&status=&survey_id=` | Grid; `status` accepts pipeline stages (Lead/Fit/Completed/Failed/flagged) or, with `survey_id`, Approved/Rejected/Waitlisted; each row then carries `eligibility:{result,reason}` (computed + saved to `eligibility_results`) |
 | GET | `/api/admin/members/export` (+ same query filters) `&format=csv\|xlsx` | Same view as CSV or Excel (.xlsx, openpyxl); eligibility columns included when `survey_id` is given |
+| GET | `/api/admin/referrals?stage=&q=&limit=&offset=` | Referral workflow list with member/referrer, city, source, stage, reason |
 | POST | `/api/admin/referrals/{id}/stage` | `{stage:"Completed",survey_id:1,quality_check_passed:true}` records completion, starts cool-off, creates payouts; `{stage:"Failed",failure_reason:"…"}` |
-| GET/POST | `/api/admin/surveys` | List / create survey with rules |
+| GET/POST | `/api/admin/surveys` | List / create survey with rules, interest tags and ≤15-day deadline |
+| PATCH | `/api/admin/surveys/{id}` | Edit status, deadline, quota, amount and interest tags |
 | GET/POST | `/api/admin/payouts`, `POST /api/admin/payouts/{id}/status` | Ledger; body `{status:"Approved"\|"Paid"}` (or `?status=`); Paid blocked until Approved |
 | GET | `/api/me/status` | Member's own stage, completions, earnings |
 | GET | `/api/admin/source-stats` | Per-source funnel |
