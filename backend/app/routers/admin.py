@@ -129,9 +129,15 @@ def set_stage(rid: int, b: StageIn, _=Depends(admin_auth), db: Session = Depends
 # ---------- payout ledger ----------
 @router.get("/api/admin/payouts")
 def payouts(_=Depends(admin_auth), db: Session = Depends(db_dep)):
-    return [{"id": p.id, "member": db.get(Member, p.member_id).name,
-             "kind": "Referral bonus" if p.referral_id else "Survey payment", "amount": p.amount, "status": p.status}
-            for p in db.query(Payout).order_by(Payout.id.desc())]
+    out = []
+    for p in db.query(Payout).order_by(Payout.id.desc()):
+        m = db.get(Member, p.member_id)
+        if m is None:
+            raise HTTPException(404, "Member not found.")
+        out.append({"id": p.id, "member": m.name,
+                    "kind": "Referral bonus" if p.referral_id else "Survey payment",
+                    "amount": p.amount, "status": p.status})
+    return out
 
 
 @router.post("/api/admin/payouts/{pid}/status")
@@ -170,12 +176,19 @@ def source_stats(_=Depends(admin_auth), db: Session = Depends(db_dep)):
 @router.get("/api/admin/meta-leads")
 def meta_leads(limit: int = Query(100, ge=1, le=500), _=Depends(admin_auth), db: Session = Depends(db_dep)):
     rows = db.query(MetaLead).order_by(MetaLead.id.desc()).limit(limit).all()
-    return [{"id": x.id, "lead_id": x.lead_id, "campaign_id": x.campaign_id, "ad_id": x.ad_id,
-             "form_id": x.form_id, "received_at": x.received_at.isoformat(),
-             "member_id": x.member_id,
-             "member": db.get(Member, x.member_id).name if x.member_id else None,
-             "status": "linked" if x.member_id else "needs review"}
-            for x in rows]
+    out = []
+    for x in rows:
+        member_name = None
+        if x.member_id:
+            m = db.get(Member, x.member_id)
+            if m is None:
+                raise HTTPException(404, "Member not found.")
+            member_name = m.name
+        out.append({"id": x.id, "lead_id": x.lead_id, "campaign_id": x.campaign_id, "ad_id": x.ad_id,
+                    "form_id": x.form_id, "received_at": x.received_at.isoformat(),
+                    "member_id": x.member_id, "member": member_name,
+                    "status": "linked" if x.member_id else "needs review"})
+    return out
 
 
 @router.get("/api/admin/meta-leads/stats")
@@ -245,10 +258,18 @@ def list_overrides(member_id: Optional[int] = None, _=Depends(admin_auth), db: S
     q = db.query(AdminOverride)
     if member_id:
         q = q.filter_by(member_id=member_id)
-    return [{"id": o.id, "member_id": o.member_id, "member": db.get(Member, o.member_id).name,
-             "survey_id": o.survey_id, "survey": db.get(Survey, o.survey_id).title,
-             "reason": o.reason, "created_at": o.created_at.date().isoformat()}
-            for o in q.order_by(AdminOverride.id.desc())]
+    out = []
+    for o in q.order_by(AdminOverride.id.desc()):
+        m = db.get(Member, o.member_id)
+        if m is None:
+            raise HTTPException(404, "Member not found.")
+        s = db.get(Survey, o.survey_id)
+        if s is None:
+            raise HTTPException(404, "Survey not found.")
+        out.append({"id": o.id, "member_id": o.member_id, "member": m.name,
+                    "survey_id": o.survey_id, "survey": s.title,
+                    "reason": o.reason, "created_at": o.created_at.date().isoformat()})
+    return out
 
 
 @router.post("/api/admin/overrides", status_code=201)

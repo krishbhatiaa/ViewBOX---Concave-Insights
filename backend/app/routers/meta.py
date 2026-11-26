@@ -14,6 +14,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..deps import db_dep, norm_phone
@@ -65,10 +66,16 @@ async def meta_lead(request: Request, b: MetaLeadIn, _=Depends(verify_webhook),
     m = db.query(Member).filter_by(phone=phone).first()
     status = "linked_existing"
     if not m:
-        s = db.query(Source).filter_by(name="Meta Ads").first() or Source(name="Meta Ads", type="meta_ads",
-                                                                          unique_slug="meta-ads")
-        db.add(s)
-        db.flush()
+        s = db.query(Source).filter_by(unique_slug="meta-ads").first()
+        if not s:
+            try:
+                with db.begin_nested():
+                    s = Source(name="Meta Ads", type="meta_ads", unique_slug="meta-ads")
+                    db.add(s)
+                    db.flush()
+            except IntegrityError:
+                s = db.query(Source).filter_by(unique_slug="meta-ads").first() or \
+                    db.query(Source).filter_by(name="Meta Ads").first()
         m = Member(phone=phone, name=str(name).strip().title(), city=str(city or "").title() or None,
                    source_id=s.id, first_touch_source_id=s.id)
         db.add(m)
