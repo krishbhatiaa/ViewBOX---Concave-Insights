@@ -7,12 +7,14 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Completion, Payout, Referral, Survey
+from . import audit
 
 BONUS = Decimal(os.getenv("REFERRAL_BONUS", "100"))
 
 
 def set_stage(db: Session, rid: int, stage: str, failure_reason: str | None,
-              survey_id: int | None, quality_check_passed: bool) -> dict:
+              survey_id: int | None, quality_check_passed: bool,
+              actor=None, ip: str | None = None) -> dict:
     """Move one referral row to the next stage (ops action).
 
     Completed writes the completion (starts the 3-month cool-off when the quality
@@ -42,5 +44,7 @@ def set_stage(db: Session, rid: int, stage: str, failure_reason: str | None,
         else:
             stage, reason = "Failed", "Did not pass the quality check, so no payment is due."
     r.stage, r.failure_reason, r.updated_at = stage, reason if stage == "Failed" else None, datetime.utcnow()
+    actor_id, role = audit.identity(actor)
+    audit.log(actor_id, role, "referral_stage_changed", "referral", rid, {"stage": r.stage}, ip, db=db)
     db.commit()
     return {"ok": True, "stage": r.stage}

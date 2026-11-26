@@ -1,5 +1,6 @@
 """Admin panel: login, sources, surveys, respondent grid + export, referral stages,
 payout ledger, source dashboard, fraud queue and manual eligibility overrides."""
+import json
 from datetime import datetime
 from typing import Literal, Optional
 
@@ -11,8 +12,8 @@ from sqlalchemy.orm import Session
 from .. import fraud
 from .. import security as sec
 from ..deps import admin_auth, db_dep, link_for, slugify
-from ..models import (AdminOverride, AdminUser, Completion, FraudFlag, Member, MetaLead, Payout,
-                      Referral, Source, Survey, SurveyRule)
+from ..models import (AdminOverride, AdminUser, AuditEvent, Completion, FraudFlag, Member, MetaLead,
+                       Payout, Referral, Source, Survey, SurveyRule)
 from ..schemas import (AdminLogin, FlagReviewIn, GridFilterIn, OverrideIn, PayoutStatusIn, SourceIn,
                        StageIn, SuggestRulesIn, SurveyIn, SurveyPatchIn)
 from ..services import audit, grid as grid_svc, sheets
@@ -28,6 +29,17 @@ def admin_login(b: AdminLogin, db: Session = Depends(db_dep)):
     if not a or not sec.check_pw(b.password, a.password_hash):
         raise HTTPException(401, "Incorrect email or password.")
     return {"token": sec.make_token(a.email, "admin")}
+
+
+# ---------- append-only audit trail ----------
+@router.get("/api/admin/audit")
+def list_audit(limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
+               _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    rows = db.query(AuditEvent).order_by(AuditEvent.id.desc()).offset(offset).limit(limit).all()
+    return [{"id": e.id, "actor_id": e.actor_id, "actor_role": e.actor_role, "action": e.action,
+             "resource_type": e.resource_type, "resource_id": e.resource_id,
+             "details": json.loads(e.details_json) if e.details_json else None,
+             "ip": e.ip, "created_at": e.created_at.isoformat()} for e in rows]
 
 
 # ---------- sources (data, not hardcoded) ----------
@@ -146,11 +158,9 @@ def sheets_pull(worksheet: str = Query("sheet1", max_length=100), _=Depends(admi
 # ---------- referral stages ----------
 @router.post("/api/admin/referrals/{rid}/stage")
 def set_stage(request: Request, rid: int, b: StageIn, t=Depends(admin_auth), db: Session = Depends(db_dep)):
-    result = apply_stage(db, rid, b.stage, b.failure_reason, b.survey_id, b.quality_check_passed)
-    audit.log(db, "referral_stage_changed", "referral", rid, actor=t, details={"stage": result["stage"]},
-              ip=request.client.host if request.client else None)
-    db.commit()
-    return result
+    ip = request.client.host if request.client else None
+    return apply_stage(db, rid, b.stage, b.failure_reason, b.survey_id, b.quality_check_passed,
+                       actor=t, ip=ip)
 
 
 # ---------- payout ledger ----------
@@ -183,8 +193,9 @@ def payout_status(request: Request, pid: int, b: Optional[PayoutStatusIn] = Body
     p.status = val
     if val == "Approved":
         p.approved_by, p.approved_at = t["sub"], datetime.utcnow()
-    audit.log(db, "payout_status_changed", "payout", pid, actor=t, details={"status": val},
-              ip=request.client.host if request.client else None)
+    actor_id, role = audit.identity(t)
+    audit.log(actor_id, role, "payout_status_changed", "payout", pid, {"status": val},
+              request.client.host if request.client else None, db=db)
     db.commit()
     return {"ok": True}
 
@@ -271,9 +282,10 @@ def review_flag(request: Request, fid: int, b: FlagReviewIn, t=Depends(admin_aut
     m = db.get(Member, f.member_id)
     if m:
         m.is_flagged = open_left > 0
-    audit.log(db, "fraud_flag_reviewed", "fraud_flag", fid, actor=t,
-              details={"status": f.status, "note": b.note},
-              ip=request.client.host if request.client else None)
+    actor_id, role = audit.identity(t)
+    audit.log(actor_id, role, "fraud_flag_reviewed", "fraud_flag", fid,
+              {"status": f.status, "note": b.note},
+              request.client.host if request.client else None, db=db)
     db.commit()
     return {"ok": True, "status": f.status, "member_flagged": bool(m and m.is_flagged)}
 
@@ -317,8 +329,9 @@ def create_override(b: OverrideIn, t=Depends(admin_auth), db: Session = Depends(
     db.add(o)
     try:
         db.flush()
-        audit.log(db, "override_created", "override", o.id, actor=t,
-                  details={"member_id": b.member_id, "survey_id": b.survey_id})
+        actor_id, role = audit.identity(t)
+        audit.log(actor_id, role, "override_created", "override", o.id,
+                  {"member_id": b.member_id, "survey_id": b.survey_id}, db=db)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -331,8 +344,9 @@ def delete_override(oid: int, t=Depends(admin_auth), db: Session = Depends(db_de
     o = db.get(AdminOverride, oid)
     if not o:
         raise HTTPException(404, "Override not found.")
-    audit.log(db, "override_deleted", "override", oid, actor=t,
-              details={"member_id": o.member_id, "survey_id": o.survey_id})
+    actor_id, role = audit.identity(t)
+    audit.log(actor_id, role, "override_deleted", "override", oid,
+              {"member_id": o.member_id, "survey_id": o.survey_id}, db=db)
     db.delete(o)
     db.commit()
     return {"ok": True}
