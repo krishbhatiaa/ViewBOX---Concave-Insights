@@ -148,3 +148,12 @@ def test_referrals_page_has_qr_download():
     assert '"/api/me/referral-qr"' in page
     assert "downloadBlob(blob" in page
     assert "raw: true" in page
+
+
+def test_source_dashboard_shows_completion_rate_quality_score():
+    stats = _read("pages/admin/StatsPage.jsx")
+    assert "Completion rate" in stats
+    assert "QualityBar" in stats
+    assert "bg-emerald-500" in stats and "bg-rose-500" in stats
+    assert "converts {ratio}x better than" in stats
+    assert "consider shifting spend." in stats

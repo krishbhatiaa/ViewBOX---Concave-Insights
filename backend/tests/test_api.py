@@ -317,6 +317,8 @@ def test_stage_flow_and_payout_approval_gate(client, admin):
 def test_source_stats(client, admin):
     stats = client.get("/api/admin/source-stats", headers=admin).json()
     assert any(x["source"] == "Website" and x["signups"] >= 1 for x in stats)
+    assert all("completion_rate" in x and "by_channel" in x for x in stats)
+    assert all(x["completion_rate"] == x["completed"] / max(x["signups"], 1) for x in stats)
 
 
 # ---------- Meta leads ----------

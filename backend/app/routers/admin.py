@@ -225,6 +225,7 @@ def source_stats(_=Depends(admin_auth), db: Session = Depends(db_dep)):
             channels[key] = channels.get(key, 0) + 1
         out.append({"source": s.name, "type": s.type, "signups": len(st),
                     "fit": sum(x in ("Fit", "Completed") for x in st), "completed": st.count("Completed"),
+                    "completion_rate": st.count("Completed") / max(len(st), 1),
                     "by_channel": [{"channel": k, "count": v} for k, v in
                                    sorted(channels.items(), key=lambda kv: -kv[1])]})
     return sorted(out, key=lambda x: -x["signups"])

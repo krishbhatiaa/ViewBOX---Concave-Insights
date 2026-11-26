@@ -28,6 +28,17 @@ function FunnelBar({ value, max, color }) {
   );
 }
 
+function QualityBar({ rate, tone }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-2.5 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${rate * 100}%` }} />
+      </div>
+      <span className="tabular-nums text-sm font-medium">{Math.round(rate * 100)}%</span>
+    </div>
+  );
+}
+
 function relativeTime(iso) {
   if (!iso) return "never";
   const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -99,6 +110,13 @@ export default function StatsPage() {
       })
     : null;
 
+  const rated = rows ? rows.filter((r) => r.signups > 0) : [];
+  const best = rated.reduce((a, b) => (!a || b.completion_rate > a.completion_rate ? b : a), null);
+  const worst = rated.reduce((a, b) => (!a || b.completion_rate < a.completion_rate ? b : a), null);
+  const ratio = best && worst
+    ? worst.completion_rate > 0 ? (best.completion_rate / worst.completion_rate).toFixed(1) : "∞"
+    : null;
+
   return (
     <div className="space-y-5">
       <PageHeader title="Source dashboard" description="Sign-ups, Fit and Completed per channel — sorted by volume." />
@@ -118,6 +136,13 @@ export default function StatsPage() {
           Sync now
         </Button>
       </Card>
+
+      {best && worst && best !== worst ? (
+        <p className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">
+          <span className="font-semibold">{best.source}</span> converts {ratio}x better than{" "}
+          <span className="font-semibold">{worst.source}</span> — consider shifting spend.
+        </p>
+      ) : null}
 
       {loading && !rows ? (
         <LoadingCard label="Loading source stats…" />
@@ -144,6 +169,7 @@ export default function StatsPage() {
                     <Th>Fit</Th>
                     <Th>Completed</Th>
                     <Th>Conversion</Th>
+                    <Th>Completion rate</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,6 +188,13 @@ export default function StatsPage() {
                       </Td>
                       <Td className="tabular-nums">
                         {r.signups ? Math.round((r.completed / r.signups) * 100) : 0}%
+                      </Td>
+                      <Td>
+                        <QualityBar
+                          rate={r.completion_rate || 0}
+                          tone={best && r.source === best.source ? "bg-emerald-500"
+                            : worst && r.source === worst.source ? "bg-rose-500" : BAR_TONES.sky}
+                        />
                       </Td>
                     </tr>
                   ))}
