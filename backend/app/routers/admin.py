@@ -7,8 +7,9 @@ from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from .. import fraud
 from .. import security as sec
@@ -178,6 +179,33 @@ def sheets_pull(worksheet: str = Query("sheet1", max_length=100), _=Depends(admi
 
 
 # ---------- referral stages ----------
+@router.get("/api/admin/referrals")
+def list_referrals(stage: Optional[Literal["Lead", "Fit", "Completed", "Failed"]] = None,
+                   q: str = Query("", max_length=100), limit: int = Query(100, ge=1, le=500),
+                   offset: int = Query(0, ge=0), _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    referrer = aliased(Member)
+    rows = db.query(Referral).join(Member, Member.id == Referral.referred_member_id) \
+             .outerjoin(referrer, Referral.referrer_id == referrer.id)
+    if stage:
+        rows = rows.filter(Referral.stage == stage)
+    if q:
+        pattern = f"%{q}%"
+        rows = rows.filter(or_(Member.name.like(pattern), referrer.name.like(pattern),
+                               Member.city.like(pattern), Referral.failure_reason.like(pattern)))
+    out = []
+    for r in rows.order_by(Referral.updated_at.desc(), Referral.id.desc()).offset(offset).limit(limit):
+        member = db.get(Member, r.referred_member_id)
+        referrer_member = db.get(Member, r.referrer_id) if r.referrer_id else None
+        source = db.get(Source, member.source_id) if member and member.source_id else None
+        out.append({"id": r.id, "referrer_id": r.referrer_id,
+                    "referrer": referrer_member.name if referrer_member else None,
+                    "member_id": r.referred_member_id, "member": member.name if member else None,
+                    "city": member.city if member else None, "source": source.name if source else None,
+                    "stage": r.stage, "failure_reason": r.failure_reason,
+                    "updated_at": r.updated_at.isoformat() if r.updated_at else None})
+    return out
+
+
 @router.post("/api/admin/referrals/{rid}/stage")
 def set_stage(request: Request, rid: int, b: StageIn, t=Depends(admin_auth), db: Session = Depends(db_dep)):
     ip = request.client.host if request.client else None
