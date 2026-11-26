@@ -16,6 +16,19 @@ log = logging.getLogger("viewbox.import")
 
 DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d %b %Y",
                 "%d/%m/%y", "%d-%m-%y", "%d.%m.%y", "%Y/%m/%d", "%m/%d/%Y")
+FORMULA_PREFIXES = ("=", "+", "-", "@")
+VALIDATED_FIELDS = {"phone", "mobile", "dob", "date_of_birth", "joined_on", "last_survey_completed_on"}
+
+
+def safe_text(v):
+    s = str(v or "").strip()
+    return "'" + s if s.startswith(FORMULA_PREFIXES) else s
+
+
+def norm_cell(key, value):
+    key = (key or "").strip().lower()
+    s = str(value or "").strip()
+    return s if key in VALIDATED_FIELDS else safe_text(s)
 
 
 def parse_date(v, floor=1920):
@@ -63,14 +76,15 @@ def plan_row(raw, srcs, seen):
 
     Returns (plan, fixes, warns). Raises ValueError with a human reason to skip the row.
     """
-    r = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+    r = {(k or "").strip().lower(): norm_cell(k, v) for k, v in raw.items()}
     fixes, warns = [], []
     phone = norm_phone(r.get("phone") or r.get("mobile"))
     if not phone:
         raise ValueError("invalid or missing phone")
     if phone in seen:
         raise ValueError("duplicate phone")
-    name = " ".join((r.get("name") or "").split()).title()
+    name = " ".join((r.get("name") or "").split())
+    name = name if name.startswith("'") else name.title()
     if len(name) < 2:
         raise ValueError("missing name")
     raw_dob = r.get("dob") or r.get("date_of_birth") or ""
@@ -86,7 +100,8 @@ def plan_row(raw, srcs, seen):
     if (r.get("phone") or "") != phone:
         fixes.append("phone normalised")
     city_raw = r.get("city") or ""
-    city = city_raw.title() if city_raw and (city_raw.islower() or city_raw.isupper()) else city_raw
+    city = (city_raw.title() if city_raw and (city_raw.islower() or city_raw.isupper()) else city_raw) \
+        if not city_raw.startswith("'") else city_raw
     if city != city_raw:
         fixes.append(f"city '{city_raw}' -> {city}")
     income, note, level = norm_income(r.get("income") or r.get("income_range"))
