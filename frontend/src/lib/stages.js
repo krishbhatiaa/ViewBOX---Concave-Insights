@@ -19,6 +19,10 @@ export function toneForStage(stage) {
 export const STAGE_EXPLANATION = {
   Lead: "You have signed up. Our team is checking your profile against survey criteria.",
   Fit: "Your profile matches. You are in the pool for upcoming surveys.",
+  Waitlisted: "Waitlisted: you nearly match this survey. Ops may still approve you.",
+  Approved: "You meet all the requirements. You can take this survey.",
+  Pending: "Pending ops approval — we are reviewing your details before payment.",
+  Rejected: "Not eligible: you did not meet this survey's requirements. See the reason below.",
   Completed: "You completed a survey. Thank you!",
   Failed: "Your profile was not selected this time.",
 };

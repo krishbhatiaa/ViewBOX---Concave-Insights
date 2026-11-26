@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { tokens } from "./api.js";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
 import { Button, Card, PageHeader } from "./components/ui.jsx";
 import AdminLayout from "./pages/admin/AdminLayout.jsx";
@@ -44,31 +45,33 @@ function NotFound() {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <Routes>
-        <Route path="/" element={<HomeOrLogin />} />
-        <Route path="/signup" element={<HomeOrLogin />} />
-        <Route path="/login" element={<PhonePage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route element={<MemberLayout />}>
-          <Route path="/home" element={<HomePage />} />
-          <Route path="/referrals" element={<ReferralsPage />} />
-        </Route>
+    <ErrorBoundary>
+      <ToastProvider>
+        <Routes>
+          <Route path="/" element={<HomeOrLogin />} />
+          <Route path="/signup" element={<HomeOrLogin />} />
+          <Route path="/login" element={<PhonePage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route element={<MemberLayout />}>
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/referrals" element={<ReferralsPage />} />
+          </Route>
 
-        <Route path="/admin" element={<AdminLoginPage />} />
-        <Route element={<AdminLayout />}>
-          <Route path="/admin/members" element={<GridPage />} />
-          <Route path="/admin/surveys" element={<SurveysPage />} />
-          <Route path="/admin/sources" element={<SourcesPage />} />
-          <Route path="/admin/stats" element={<StatsPage />} />
-          <Route path="/admin/import" element={<ImportPage />} />
-          <Route path="/admin/meta-leads" element={<MetaLeadsPage />} />
-          <Route path="/admin/payouts" element={<PayoutsPage />} />
-          <Route path="/admin/fraud" element={<FraudPage />} />
-        </Route>
+          <Route path="/admin" element={<AdminLoginPage />} />
+          <Route element={<AdminLayout />}>
+            <Route path="/admin/members" element={<GridPage />} />
+            <Route path="/admin/surveys" element={<SurveysPage />} />
+            <Route path="/admin/sources" element={<SourcesPage />} />
+            <Route path="/admin/stats" element={<StatsPage />} />
+            <Route path="/admin/import" element={<ImportPage />} />
+            <Route path="/admin/meta-leads" element={<MetaLeadsPage />} />
+            <Route path="/admin/payouts" element={<PayoutsPage />} />
+            <Route path="/admin/fraud" element={<FraudPage />} />
+          </Route>
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </ToastProvider>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }

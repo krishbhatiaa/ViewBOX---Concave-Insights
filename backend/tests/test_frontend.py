@@ -22,3 +22,18 @@ def test_401_on_authenticated_request_shows_toast_and_redirects():
 
     assert "role:" not in _read("pages/member/PhonePage.jsx")
     assert "role:" not in _read("pages/admin/AdminLoginPage.jsx")
+
+
+def test_error_boundary_and_complete_stage_explanations():
+    boundary = _read("components/ErrorBoundary.jsx")
+    assert "class ErrorBoundary extends Component" in boundary
+    assert "componentDidCatch" in boundary
+    assert "Something went wrong." in boundary and "Reload" in boundary
+    app = _read("App.jsx")
+    assert "<ErrorBoundary>" in app and "<ToastProvider>" in app
+
+    map_body = _read("lib/stages.js").split("STAGE_EXPLANATION = {", 1)[1].split("}", 1)[0]
+    for stage in ("Waitlisted", "Pending", "Approved", "Rejected"):
+        assert f"{stage}: " in map_body
+    referrals = _read("pages/member/ReferralsPage.jsx")
+    assert "STAGE_EXPLANATION[r.stage] && <p>" in referrals

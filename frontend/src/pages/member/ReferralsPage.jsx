@@ -107,7 +107,9 @@ export default function ReferralsPage() {
                         "—"
                       )}
                     </Td>
-                    <Td className="max-w-48 whitespace-normal text-slate-500 dark:text-slate-400">{r.failure_reason || STAGE_EXPLANATION[r.stage] || ""}</Td>
+                    <Td className="max-w-48 whitespace-normal text-slate-500 dark:text-slate-400">
+                      {r.failure_reason || (STAGE_EXPLANATION[r.stage] && <p>{STAGE_EXPLANATION[r.stage]}</p>)}
+                    </Td>
                     <Td className="text-slate-500 dark:text-slate-400">{r.updated_at.slice(0, 10)}</Td>
                   </tr>
                 ))}
