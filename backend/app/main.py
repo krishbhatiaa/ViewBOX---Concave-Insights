@@ -5,6 +5,7 @@ business logic in app/services/ (see those modules for the actual behaviour).
 """
 import logging
 import os
+import uuid
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,8 +75,10 @@ _ensure_columns()
 
 @app.exception_handler(Exception)
 async def friendly(_, exc):
-    log.exception("unhandled")
-    return JSONResponse({"detail": "Something went wrong on our side. Please try again."}, 500)
+    correlation_id = str(uuid.uuid4())
+    log.error("unhandled error correlation_id=%s exception_type=%s", correlation_id, type(exc).__name__)
+    return JSONResponse({"detail": "Something went wrong on our side. Please try again.",
+                         "correlation_id": correlation_id}, 500)
 
 
 for r in (auth.router, member.router, admin.router, importer.router, meta.router):

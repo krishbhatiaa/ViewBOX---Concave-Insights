@@ -10,6 +10,7 @@ import logging
 from datetime import date, datetime
 
 from ..deps import norm_phone, slugify
+from .audit import one_line
 from ..models import Completion, ImportLog, Member, Referral, Source
 
 log = logging.getLogger("viewbox.import")
@@ -134,6 +135,7 @@ def run_import(db, text: str, filename: str, dry_run: bool):
 
     Returns the summary dict the UI shows (total_rows/imported/fixed/warned/skipped/details).
     """
+    filename = one_line(filename)
     rows = list(csv.DictReader(io.StringIO(text)))
     if not rows:
         return None  # caller turns this into a 422
@@ -179,7 +181,7 @@ def run_import(db, text: str, filename: str, dry_run: bool):
     log.info("import %s: %d rows -> %d imported, %d fixed, %d warned, %d skipped",
              filename, len(rows), added, fixed, warned, skipped)
     for d in detail:  # one log line per problem row so support can trace it
-        log.warning("import %s row %s %s: %s", filename, d["row"], d["action"], d["reason"])
+        log.warning("import %s row %s %s: %s", filename, d["row"], d["action"], one_line(d["reason"]))
     if dry_run:
         return {"preview": True, **summary}  # nothing has been written - validation only
     for i, plan, fixes, warns in planned:
