@@ -71,10 +71,10 @@ export default function SourcesPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Sources" description="Every signup channel gets a signed ?src= link. Forged links are ignored." />
+      <PageHeader kicker="ADMIN / 04" title="Sources" description="Every signup channel gets a signed ?src= link. Forged links are ignored." />
 
       <Card>
-        <h2 className="mb-3 text-base font-semibold">Add source</h2>
+        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">Add source</h2>
         <form onSubmit={submit} noValidate>
           {formError && (
             <div className="mb-3">
@@ -121,8 +121,8 @@ export default function SourcesPage() {
         <ErrorState message={error} onRetry={load} />
       ) : rows?.length ? (
         <Card className="!p-0">
-          <h2 className="px-4 pt-4 text-base font-semibold sm:px-5">All sources</h2>
-          <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
+          <h2 className="border-b border-line px-4 py-3 font-mono text-[11px] uppercase tracking-[.08em] text-ink-2 sm:px-5">All sources</h2>
+          <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
             <Table>
               <thead>
                 <tr>
@@ -136,16 +136,16 @@ export default function SourcesPage() {
               </thead>
               <tbody>
                 {rows.map((s) => (
-                  <tr key={s.id}>
+                  <tr key={s.id} className="hover:bg-paper-2">
                     <Td className="font-medium">{s.name}</Td>
-                    <Td className="text-slate-500">{s.type}</Td>
+                    <Td className="font-mono text-xs text-ink-2">{s.type}</Td>
                     <Td>
                       <input
                         readOnly
                         value={s.link}
                         aria-label={`Signed link for ${s.name}`}
                         onFocus={(e) => e.target.select()}
-                        className="min-h-11 w-full min-w-56 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                        className="min-h-11 w-full min-w-56 rounded-[2px] border border-line-2 bg-paper px-3 font-mono text-xs text-ink-2"
                       />
                     </Td>
                     <Td>

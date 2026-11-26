@@ -76,6 +76,7 @@ export default function ImportPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        kicker="ADMIN / 06"
         title="Import respondents"
         description="Preview a messy CSV first — nothing is saved until you confirm. Bad rows are fixed or skipped with a reason; the import never crashes."
       />
@@ -83,7 +84,7 @@ export default function ImportPage() {
       <Card>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
-            <label htmlFor="csv-file" className="mb-1 block text-sm font-medium">
+            <label htmlFor="csv-file" className="mb-1 block font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">
               CSV file
             </label>
             <Input
@@ -92,7 +93,7 @@ export default function ImportPage() {
               type="file"
               accept=".csv,text/csv"
               onChange={pick}
-              className="!py-2.5 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-950 dark:file:text-indigo-300"
+              className="!py-2 file:mr-3 file:rounded-[2px] file:border file:border-line-2 file:bg-paper-2 file:px-3 file:py-1.5 file:font-mono file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-ink hover:file:bg-paper-3"
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -105,12 +106,12 @@ export default function ImportPage() {
           </div>
         </div>
         {file && !loading && (
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 font-mono text-xs text-ink-2">
             Selected: <b>{file.name}</b> ({(file.size / 1024).toFixed(1)} KB)
           </p>
         )}
         {preview && (
-          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <p className="mt-2 rounded-[2px] border border-l-4 border-line-2 border-l-acc bg-paper-3 px-3 py-2 text-sm text-ink">
             Preview only — nothing has been saved yet. Check the report below, then press{" "}
             <b>Confirm import</b>.
           </p>
@@ -120,23 +121,23 @@ export default function ImportPage() {
             <InlineError message={error} />
           </div>
         )}
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-ink-2">
           Expected columns: name, phone, DOB (or date_of_birth), gender, city, income, interests, source — plus
           member_id, referred_by, joined_on and last_survey_completed_on when you have them (header names are
           matched case-insensitively). Try{" "}
-          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">data/viewbox_respondents_sample.csv</code>{" "}
+          <code className="rounded-[2px] border border-line bg-paper px-1 font-mono">data/viewbox_respondents_sample.csv</code>{" "}
           (the real 189-row sample) or{" "}
-          <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">data/messy_sample.csv</code>.
+          <code className="rounded-[2px] border border-line bg-paper px-1 font-mono">data/messy_sample.csv</code>.
         </p>
       </Card>
 
       {loading && (
         <Card aria-busy="true">
-          <p className="text-sm font-medium">Importing…</p>
+          <p className="font-mono text-xs uppercase tracking-[.08em] text-ink-2">Importing…</p>
           <div className="mt-3 space-y-2">
-            <div className="h-8 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-            <div className="h-8 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-            <div className="h-8 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="h-8 animate-pulse rounded-[2px] bg-paper-3" />
+            <div className="h-8 animate-pulse rounded-[2px] bg-paper-3" />
+            <div className="h-8 animate-pulse rounded-[2px] bg-paper-3" />
           </div>
         </Card>
       )}
@@ -152,11 +153,11 @@ export default function ImportPage() {
           </div>
 
           <Card className="!p-0">
-            <div className="flex items-center justify-between px-4 pt-4 sm:px-5">
-              <h2 className="text-base font-semibold">{preview ? "Per-row report (preview)" : "Per-row report"}</h2>
-              {(preview || report).details.length === 0 && <span className="text-sm text-slate-500">No issues found</span>}
+            <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
+              <h2 className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">{preview ? "Per-row report (preview)" : "Per-row report"}</h2>
+              {(preview || report).details.length === 0 && <span className="font-mono text-xs text-ink-2">No issues found</span>}
             </div>
-            <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
+            <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
               {(preview || report).details.length ? (
                 <Table>
                   <thead>
@@ -168,14 +169,14 @@ export default function ImportPage() {
                   </thead>
                   <tbody>
                     {(preview || report).details.map((d, i) => (
-                      <tr key={i}>
-                        <Td className="tabular-nums">{d.row}</Td>
+                      <tr key={i} className="hover:bg-paper-2">
+                        <Td className="font-mono text-xs tabular-nums">{d.row}</Td>
                         <Td>
                           <Tag tone={d.action === "fixed" ? "amber" : d.action === "warned" ? "sky" : "rose"}>
                             {d.action}
                           </Tag>
                         </Td>
-                        <Td className="whitespace-normal text-slate-600 dark:text-slate-300">{d.reason}</Td>
+                        <Td className="whitespace-normal text-ink-2">{d.reason}</Td>
                       </tr>
                     ))}
                   </tbody>

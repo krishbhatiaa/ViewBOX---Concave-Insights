@@ -136,10 +136,10 @@ export default function MetaSimulator() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Meta webhook simulator" description="Test the verify handshake and both lead payload formats without a Meta account." />
+      <PageHeader kicker="ADMIN / 08" title="Meta webhook simulator" description="Test the verify handshake and both lead payload formats without a Meta account." />
 
       <Card className="space-y-4">
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-ink-2">
           In production, Meta sends only IDs in a wrapped envelope; the server fetches field_data from the Graph API. Without a page access token the mock fetcher supplies fields.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -161,7 +161,7 @@ export default function MetaSimulator() {
           <Button variant="secondary" onClick={() => chooseSample("duplicate")}>Duplicate lead</Button>
           <Button variant="secondary" onClick={() => chooseSample("missingPhone")}>Missing phone</Button>
         </div>
-        <label className="block text-sm font-medium" htmlFor="meta-payload">
+        <label className="block font-mono text-[11px] uppercase tracking-[.08em] text-ink-2" htmlFor="meta-payload">
           Payload
         </label>
         <textarea
@@ -170,7 +170,7 @@ export default function MetaSimulator() {
           onChange={(e) => setText(e.target.value)}
           rows={16}
           spellCheck={false}
-          className="w-full rounded-lg border border-slate-300 bg-white p-3 font-mono text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+          className="w-full rounded-[2px] border border-line-2 bg-paper p-3 font-mono text-xs text-ink focus:border-acc focus:outline-none focus:ring-1 focus:ring-acc"
         />
         <div className="flex flex-wrap gap-2">
           <Button loading={sending} onClick={send}>Send webhook</Button>
@@ -179,8 +179,8 @@ export default function MetaSimulator() {
       </Card>
 
       <Card className="space-y-2">
-        <h2 className="text-base font-semibold">Response</h2>
-        <pre className="max-h-80 overflow-auto rounded-lg bg-slate-100 p-3 text-xs text-slate-800 dark:bg-slate-950 dark:text-slate-100">
+        <h2 className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">Response</h2>
+        <pre className="max-h-80 overflow-auto rounded-[2px] border border-line bg-paper p-3 font-mono text-xs text-ink">
           {result ? `Status: ${result.status}\n${result.body}` : "No response yet."}
         </pre>
       </Card>

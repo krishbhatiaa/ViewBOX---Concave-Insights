@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api, tokens } from "../../api.js";
-import { Button, Card, Field, InlineError, Input, PageHeader } from "../../components/ui.jsx";
+import { AuthShell, Button, Card, Field, InlineError, Input } from "../../components/ui.jsx";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
@@ -34,8 +34,24 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <PageHeader title="Admin console" description="Sign in with your ops account." />
+    <AuthShell
+      eyebrow="Operations / admin console"
+      title={<>Keep the panel<br />moving.</>}
+      description="Review members, referrals, surveys, and payouts from one desk."
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[2px] border border-line-2 bg-paper-2 px-3 py-2 font-mono text-xs text-ink-2">
+          <span>
+            <span className="mr-2 border border-line-2 bg-paper-3 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink">
+              DEMO
+            </span>
+            admin@concave.test / admin123
+          </span>
+          <a href="/login" className="font-semibold text-acc underline">
+            Member portal
+          </a>
+        </div>
+      }
+    >
       <Card>
         <form onSubmit={submit} noValidate className="space-y-4">
           {error && <InlineError message={error} />}
@@ -65,12 +81,6 @@ export default function AdminLoginPage() {
           </Button>
         </form>
       </Card>
-      <p className="mt-4 text-center text-xs text-slate-500">
-        Demo: admin@concave.test / admin123 ·{" "}
-        <a href="/login" className="font-medium text-indigo-600 underline dark:text-indigo-400">
-          Member portal
-        </a>
-      </p>
-    </div>
+    </AuthShell>
   );
 }

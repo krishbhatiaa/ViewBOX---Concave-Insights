@@ -266,10 +266,10 @@ export default function GridPage() {
 
   return (
     <div>
-      <PageHeader title="Members" description="Search, filter, change referral stages, and export exactly what you see." />
+      <PageHeader kicker="ADMIN / 01" title="Members" description="Search, filter, change referral stages, and export exactly what you see." />
 
       {/* sticky filter bar */}
-      <div className="sticky top-[var(--admin-header-h)] z-20 -mx-4 mb-4 border-b border-slate-200 bg-slate-50/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:mx-0 sm:rounded-xl sm:border sm:px-4">
+      <div className="sticky top-[var(--admin-header-h)] z-20 -mx-4 mb-4 border-b border-line-2 bg-paper-2/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-[2px] sm:border sm:px-4">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Field label="Search" id="grid-q">
             <Input
@@ -331,14 +331,14 @@ export default function GridPage() {
         </div>
         {filtersActive && (
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-xs text-slate-500">Filters active</span>
+            <span className="font-mono text-xs text-ink-2">Filters active</span>
             <Button variant="ghost" className="min-h-11 !px-2 !text-xs" onClick={clearFilters}>
               Clear filters
             </Button>
           </div>
         )}
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+          <span className="font-mono text-[11px] font-medium uppercase tracking-[.08em] text-ink-2">
             Export current view
           </span>
           <Button variant="secondary" onClick={() => exportView("csv")} loading={exporting} disabled={!rows?.length}>
@@ -351,7 +351,7 @@ export default function GridPage() {
       </div>
 
       {filterError && (
-        <div role="alert" className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-2 rounded-[2px] border border-l-4 border-acc bg-acc/5 px-4 py-2 text-sm text-ink">
           Failed to load filters —{" "}
           <button
             type="button"
@@ -371,17 +371,17 @@ export default function GridPage() {
         <Card aria-busy="true">
           <div className="space-y-3">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-10 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+              <div key={i} className="h-10 animate-pulse rounded-[2px] bg-paper-3" />
             ))}
           </div>
         </Card>
       ) : rows?.length ? (
         <Card className="!p-0">
-          <p className="px-4 pt-4 text-sm text-slate-500 sm:px-5">
+          <p className="border-b border-line px-4 py-3 font-mono text-xs text-ink-2 sm:px-5">
             {rows.length} member{rows.length > 1 ? "s" : ""}
             {loading && " · updating…"}
           </p>
-          <div className="mt-2 px-4 pb-4 sm:px-5 sm:pb-5">
+          <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
             <Table>
               <thead>
                 <tr>
@@ -399,10 +399,10 @@ export default function GridPage() {
               </thead>
               <tbody>
                 {rows.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <Td className="tabular-nums text-slate-500">{m.id}</Td>
+                  <tr key={m.id} className="hover:bg-paper-2">
+                    <Td className="font-mono text-xs tabular-nums text-ink-2">{m.id}</Td>
                     <Td className="font-medium">{m.name}</Td>
-                    <Td className="tabular-nums">{m.phone}</Td>
+                    <Td className="font-mono text-xs tabular-nums">{m.phone}</Td>
                     <Td>{m.city || "—"}</Td>
                     <Td>{m.source}</Td>
                     <Td>{m.referrer || "—"}</Td>
@@ -414,14 +414,14 @@ export default function GridPage() {
                         {m.eligibility ? (
                           <span title={m.eligibility.reason} className="inline-flex flex-col gap-0.5">
                             <StageTag stage={m.eligibility.result} />
-                            <span className="max-w-56 truncate text-xs text-slate-500">{m.eligibility.reason}</span>
+                            <span className="max-w-56 truncate text-xs text-ink-2">{m.eligibility.reason}</span>
                           </span>
                         ) : (
                           "—"
                         )}
                       </Td>
                     )}
-                    <Td className="text-slate-500">{m.created_at}</Td>
+                    <Td className="font-mono text-xs tabular-nums text-ink-2">{m.created_at}</Td>
                     <Td>
                       <div className="flex flex-wrap gap-1.5">
                         {m.referral_id && m.stage !== "Completed" && (
@@ -444,7 +444,7 @@ export default function GridPage() {
                         <Button variant="ghost" className="min-h-11 !px-2 !text-xs" onClick={() => openOverride(m)}>
                           Override…
                         </Button>
-                        {!m.referral_id && <span className="text-xs text-slate-500 dark:text-slate-400">No referral row</span>}
+                        {!m.referral_id && <span className="font-mono text-xs text-ink-2">No referral row</span>}
                       </div>
                     </Td>
                   </tr>
@@ -488,10 +488,10 @@ export default function GridPage() {
                 type="checkbox"
                 checked={quality}
                 onChange={(e) => setQuality(e.target.checked)}
-                className="h-5 w-5 rounded border-slate-300 accent-indigo-600"
+                className="h-5 w-5 rounded-[2px] border-line-2 accent-acc"
               />
               Quality check passed
-              <span className="text-xs text-slate-500">(payment + cool-off only start when passed)</span>
+              <span className="font-mono text-xs text-ink-2">(payment + cool-off only start when passed)</span>
             </label>
           </div>
         ) : (
@@ -526,11 +526,11 @@ export default function GridPage() {
       >
         {ovExisting ? (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600 dark:text-slate-300">
+            <p className="text-sm text-ink-2">
               An override already exists for <b>{ovExisting.survey}</b>:
             </p>
-            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">{ovExisting.reason}</p>
-            <p className="text-xs text-slate-500">
+            <p className="rounded-[2px] border border-line bg-paper-2 px-3 py-2 text-sm text-ink">{ovExisting.reason}</p>
+            <p className="text-xs text-ink-2">
               The member sees “Approved by the ops team after manual review” instead of the normal rules.
             </p>
             {ovError && <InlineError message={ovError} />}
@@ -545,7 +545,7 @@ export default function GridPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600 dark:text-slate-300">
+            <p className="text-sm text-ink-2">
               Approve this member for a survey regardless of the rules. The normal engine is skipped and the member
               sees that ops approved them after manual review.
             </p>

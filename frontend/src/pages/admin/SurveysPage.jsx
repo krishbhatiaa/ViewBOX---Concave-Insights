@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, money } from "../../api.js";
+import { api, downloadBlob, money } from "../../api.js";
 import Modal from "../../components/Modal.jsx";
 import { useToast } from "../../components/Toast.jsx";
 import RefreshBanner from "../RefreshBanner.jsx";
@@ -52,7 +52,7 @@ function interestError(tags) {
 function RuleRow({ rule, onChange, onRemove }) {
   const meta = RULE_TYPES.find((t) => t.value === rule.rule_type) || RULE_TYPES[0];
   return (
-    <div className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700 sm:grid-cols-[1fr_2fr_1fr_auto]">
+    <div className="grid gap-2 rounded-[2px] border border-line-2 bg-paper p-3 sm:grid-cols-[1fr_2fr_1fr_auto]">
       <Select aria-label="Rule type" value={rule.rule_type} onChange={(e) => onChange({ ...rule, rule_type: e.target.value })}>
         {RULE_TYPES.map((t) => (
           <option key={t.value} value={t.value}>
@@ -99,6 +99,9 @@ export default function SurveysPage() {
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestNote, setSuggestNote] = useState("");
+  const [formNote, setFormNote] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -199,6 +202,32 @@ export default function SurveysPage() {
     }
   }
 
+  async function syncForms() {
+    setSyncing(true);
+    try {
+      const result = await api("/api/admin/google-forms/sync", { method: "POST", role: "admin" });
+      toast(`Synced ${result.synced} Google Form response(s)${result.failed ? `, ${result.failed} failed` : ""}`);
+      if (result.failed) toast((result.errors || []).join(" ") || "Some responses could not be stored.", "error");
+    } catch (err) {
+      toast(`Sync failed: ${err.message}`, "error");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function exportLeads() {
+    setExporting(true);
+    try {
+      const blob = await api("/api/admin/google-form-leads/export", { role: "admin", raw: true });
+      downloadBlob(blob, "google_form_leads.xlsx");
+      toast("Google Form leads downloaded as .xlsx");
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function submit(e) {
     e.preventDefault();
     setFormError("");
@@ -226,8 +255,12 @@ export default function SurveysPage() {
     };
     setSaving(true);
     try {
-      await api("/api/admin/surveys", { method: "POST", body, role: "admin" });
-      toast(`Survey "${body.title}" created`);
+      const created = await api("/api/admin/surveys", { method: "POST", body, role: "admin" });
+      const form = created.google_form;
+      toast(`Survey "${body.title}" created${form?.url ? " with a Google Form" : ""}`);
+      if (form?.url) {
+        setFormNote(`Google Form ${form.mode === "live" ? "created" : "demo link created"}: ${form.url} (${form.questions} questions)`);
+      }
       setForm({ title: "", description: "", deadline: "", quota: "", amount: "0", interests: "" });
       setRules([{ key: ++ruleKey, rule_type: "age", value: "", strict_or_flexible: "strict" }]);
       setSuggestNote("");
@@ -245,12 +278,27 @@ export default function SurveysPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Surveys" description="Create studies with eligibility rules — Strict rejects, Flexible waitlists." />
+      <PageHeader
+        kicker="ADMIN / 03"
+        title="Surveys"
+        description="Create studies with eligibility rules — Strict rejects, Flexible waitlists. A matching Google Form is created with every survey."
+        actions={
+          <>
+            <Button variant="secondary" loading={syncing} onClick={syncForms}>Sync Google Form responses</Button>
+            <Button variant="secondary" loading={exporting} onClick={exportLeads}>Download leads .xlsx</Button>
+          </>
+        }
+      />
 
       <Card>
-        <h2 className="mb-3 text-base font-semibold">New survey</h2>
+        <h2 className="mb-3 font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">New survey</h2>
         <form onSubmit={submit} noValidate className="space-y-4">
           {formError && <InlineError message={formError} />}
+          {formNote && (
+            <p className="rounded-[2px] border border-line-2 bg-paper-3 px-3 py-2 font-mono text-xs text-ink-2">
+              {formNote}
+            </p>
+          )}
           <Field label="Title" error={fieldErrors.title} required id="s-title">
             <Input id="s-title" value={form.title} error={fieldErrors.title} onChange={set("title")} placeholder="e.g. Zomato Dining Habits" />
           </Field>
@@ -285,13 +333,13 @@ export default function SurveysPage() {
 
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold">Eligibility rules</h3>
+              <h3 className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">Eligibility rules</h3>
               <Button variant="secondary" onClick={suggest} loading={suggesting} disabled={suggesting}>
                 Suggest rules
               </Button>
             </div>
             {suggestNote && (
-              <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+              <p className="mb-2 rounded-[2px] border border-l-4 border-line-2 border-l-acc bg-paper-3 px-3 py-2 text-xs font-medium text-ink">
                 {suggestNote} Nothing has been saved yet — press <b>Create survey</b> when you are happy with them.
               </p>
             )}
@@ -305,7 +353,7 @@ export default function SurveysPage() {
                 />
               ))}
             </div>
-            {fieldErrors.rules && <p role="alert" className="mt-1 text-xs text-rose-600">{fieldErrors.rules}</p>}
+            {fieldErrors.rules && <p role="alert" className="mt-1 font-mono text-xs text-acc">{fieldErrors.rules}</p>}
             <Button variant="secondary" className="mt-2" onClick={() => setRules((rs) => [...rs, { key: ++ruleKey, rule_type: "city", value: "", strict_or_flexible: "flexible" }])}>
               + Add rule
             </Button>
@@ -320,8 +368,8 @@ export default function SurveysPage() {
       {error && rows?.length ? <RefreshBanner onRetry={load} /> : null}
 
       <Card className="!p-0">
-        <h2 className="px-4 pt-4 text-base font-semibold sm:px-5">All surveys</h2>
-        <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
+        <h2 className="border-b border-line px-4 py-3 font-mono text-[11px] uppercase tracking-[.08em] text-ink-2 sm:px-5">All surveys</h2>
+        <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
           {loading && !rows ? (
             <LoadingCard label="Loading surveys…" />
           ) : error && !rows?.length ? (
@@ -331,6 +379,7 @@ export default function SurveysPage() {
               <thead>
                 <tr>
                   <Th>Title</Th>
+                  <Th>Google Form</Th>
                   <Th>Status</Th>
                   <Th>Deadline</Th>
                   <Th>Quota</Th>
@@ -343,18 +392,31 @@ export default function SurveysPage() {
               </thead>
               <tbody>
                 {rows.map((s) => (
-                  <tr key={s.id}>
+                  <tr key={s.id} className="hover:bg-paper-2">
                     <Td className="font-medium">{s.title}</Td>
+                    <Td className="max-w-56 whitespace-normal font-mono text-[11px]">
+                      {s.google_form_url ? (
+                        <span>
+                          <a href={s.google_form_url} target="_blank" rel="noreferrer"
+                             className="font-medium text-deep underline">
+                            Open form
+                          </a>
+                          {s.google_form_mode === "mock" && <span className="ml-1 text-ink-2">demo</span>}
+                        </span>
+                      ) : (
+                        <span className="text-ink-2">—</span>
+                      )}
+                    </Td>
                     <Td>
                       <Tag tone={s.status === "live" ? "emerald" : "slate"}>{s.status}</Tag>
                     </Td>
-                    <Td>{s.deadline || "—"}</Td>
-                    <Td>{s.quota ?? "∞"}</Td>
-                    <Td>
+                    <Td className="font-mono text-xs tabular-nums">{s.deadline || "—"}</Td>
+                    <Td className="font-mono text-xs tabular-nums">{s.quota ?? "∞"}</Td>
+                    <Td className="font-mono text-xs tabular-nums">
                       {s.completions}
                       {s.quota ? ` / ${s.quota}` : ""}
                     </Td>
-                    <Td className="font-medium">₹{money(s.amount)}</Td>
+                    <Td className="font-mono text-xs font-medium tabular-nums">₹{money(s.amount)}</Td>
                     <Td className="max-w-48 whitespace-normal">
                       <div className="flex flex-wrap gap-1">
                         {s.interests?.length ? (
@@ -362,7 +424,7 @@ export default function SurveysPage() {
                             <Tag key={tag} tone="indigo">{tag}</Tag>
                           ))
                         ) : (
-                          <span className="text-xs text-slate-500">Any interest</span>
+                          <span className="font-mono text-xs text-ink-2">Any interest</span>
                         )}
                       </div>
                     </Td>
@@ -375,7 +437,7 @@ export default function SurveysPage() {
                             </Tag>
                           ))
                         ) : (
-                          <span className="text-xs text-slate-500">No rules — open to all</span>
+                          <span className="font-mono text-xs text-ink-2">No rules — open to all</span>
                         )}
                       </div>
                     </Td>

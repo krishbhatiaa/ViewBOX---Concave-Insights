@@ -93,6 +93,7 @@ export default function FraudPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        kicker="ADMIN / 10"
         title="Fraud review queue"
         description="Duplicate sign-ups, self-referrals, device/IP bursts and referral rings. Flags are never deleted — review sets them to Cleared or Confirmed."
         actions={
@@ -111,7 +112,7 @@ export default function FraudPage() {
 
       <Card>
         <div className="max-w-xs">
-          <label htmlFor="flag-status" className="mb-1 block text-sm font-medium">
+          <label htmlFor="flag-status" className="mb-1 block font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">
             Show
           </label>
           <Select id="flag-status" value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -132,14 +133,14 @@ export default function FraudPage() {
         <Card aria-busy="true">
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-10 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+              <div key={i} className="h-10 animate-pulse rounded-[2px] bg-paper-3" />
             ))}
           </div>
         </Card>
       ) : flags?.length ? (
         <Card className="!p-0">
-          <p className="px-4 pt-4 text-sm text-slate-500 sm:px-5">{flags.length} flag(s)</p>
-          <div className="mt-2 px-4 pb-4 sm:px-5 sm:pb-5">
+          <p className="border-b border-line px-4 py-3 font-mono text-xs text-ink-2 sm:px-5">{flags.length} flag(s)</p>
+          <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
             <Table>
               <thead>
                 <tr>
@@ -154,14 +155,14 @@ export default function FraudPage() {
               </thead>
               <tbody>
                 {flags.map((f) => (
-                  <tr key={f.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <tr key={f.id} className="hover:bg-paper-2">
                     <Td className="font-medium">{f.name}</Td>
-                    <Td className="tabular-nums">{f.phone || "—"}</Td>
+                    <Td className="font-mono text-xs tabular-nums">{f.phone || "—"}</Td>
                     <Td>
                       <Tag tone={TYPE_TONES[f.flag_type] || "slate"}>{TYPE_LABELS[f.flag_type] || f.flag_type}</Tag>
                     </Td>
-                    <Td className="max-w-sm whitespace-normal text-slate-600 dark:text-slate-300">{f.details}</Td>
-                    <Td className="text-slate-500">{f.created_at}</Td>
+                    <Td className="max-w-sm whitespace-normal text-ink-2">{f.details}</Td>
+                    <Td className="font-mono text-xs tabular-nums text-ink-2">{f.created_at}</Td>
                     <Td>
                       <Tag tone={f.status === "open" ? "rose" : f.status === "Cleared" ? "emerald" : "amber"}>
                         {f.status}
@@ -188,7 +189,7 @@ export default function FraudPage() {
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                        <span className="font-mono text-xs text-ink-2">
                           {f.reviewed_by ? `by ${f.reviewed_by}` : "reviewed"}
                         </span>
                       )}

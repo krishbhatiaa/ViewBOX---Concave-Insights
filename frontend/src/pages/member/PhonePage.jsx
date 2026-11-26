@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, tokens } from "../../api.js";
-import { Button, Card, Field, InlineError, Input, PageHeader } from "../../components/ui.jsx";
+import { AuthShell, Button, Card, Field, InlineError, Input } from "../../components/ui.jsx";
 import { getLinkParams, setPending } from "../../lib/auth.js";
 
 export default function PhonePage() {
@@ -66,11 +66,27 @@ export default function PhonePage() {
   const params = getLinkParams();
 
   return (
-    <div className="mx-auto max-w-md px-4 py-10">
-      <PageHeader title="Welcome to ViewBox" description="Log in or join with your mobile number." />
+    <AuthShell
+      eyebrow="Member portal / secure access"
+      title={<>Real people.<br />Useful evidence.</>}
+      description="Join the ViewBox research panel with your mobile number."
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[2px] border border-line-2 bg-paper-2 px-3 py-2 font-mono text-xs text-ink-2">
+          <span>
+            <span className="mr-2 border border-line-2 bg-paper-3 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink">
+              DEMO
+            </span>
+            Members: 9000000001–9000000007
+          </span>
+          <a href="/admin" className="font-semibold text-acc underline">
+            /admin
+          </a>
+        </div>
+      }
+    >
       <Card>
         {params.src || params.ref ? (
-          <p className="mb-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+          <p className="mb-3 rounded-[2px] border border-l-4 border-deep bg-deep/10 px-3 py-2 font-mono text-xs text-ink-2">
             You arrived through a special link — we will use it when you sign up.
           </p>
         ) : null}
@@ -96,11 +112,11 @@ export default function PhonePage() {
           </form>
         ) : (
           <form onSubmit={verify} noValidate>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="font-mono text-xs uppercase tracking-wide text-ink-3">
               Demo mode: your OTP is shown here — no SMS is sent.
             </p>
             <p
-              className="my-3 rounded-lg border border-dashed border-slate-300 py-3 text-center text-3xl font-bold tracking-[0.3em] dark:border-slate-600"
+              className="my-3 rounded-[2px] border border-dashed border-line-2 bg-paper-3 py-3 text-center font-mono text-3xl tracking-[0.3em] text-ink"
               aria-label="Your OTP"
             >
               {demoOtp}
@@ -134,12 +150,6 @@ export default function PhonePage() {
           </form>
         )}
       </Card>
-      <p className="mt-4 text-center text-xs text-slate-500">
-        Demo members: 9000000001–9000000007 · Admin is at{" "}
-        <a href="/admin" className="font-medium text-indigo-600 underline dark:text-indigo-400">
-          /admin
-        </a>
-      </p>
-    </div>
+    </AuthShell>
   );
 }

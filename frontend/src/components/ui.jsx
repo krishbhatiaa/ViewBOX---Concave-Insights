@@ -125,7 +125,7 @@ export function StageTag({ stage }) {
 }
 
 export function Skeleton({ className = "" }) {
-  return <div aria-hidden="true" className={`rounded-[2px] bg-paper-3 ${className}`} />;
+  return <div aria-hidden="true" className={`animate-pulse rounded-[2px] bg-paper-3 ${className}`} />;
 }
 
 export function LoadingCard({ label = "Loading…" }) {
@@ -144,8 +144,21 @@ export function LoadingCard({ label = "Loading…" }) {
 export function EmptyState({ title, description, action }) {
   return (
     <Card className="text-center">
+      <svg
+        width="36"
+        height="36"
+        viewBox="0 0 36 36"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        aria-hidden="true"
+        className="mx-auto mb-3 text-ink-2"
+      >
+        <rect x="6" y="5" width="24" height="26" />
+        <path d="M11 12h14M11 18h10M11 24h6" />
+      </svg>
       <p className="font-display text-xl font-normal text-ink">{title}</p>
-      {description && <p className="mt-1 font-mono text-xs text-ink-3">{description}</p>}
+      {description && <p className="mt-1 text-sm text-ink-2">{description}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </Card>
   );
@@ -154,15 +167,31 @@ export function EmptyState({ title, description, action }) {
 export function ErrorState({ message, onRetry }) {
   return (
     <Card role="alert" className="border-acc bg-acc/5">
-      <p className="font-mono text-xs font-semibold uppercase tracking-wide text-acc">Error</p>
-      <p className="mt-1 text-sm text-ink">{message}</p>
-      {onRetry && (
-        <div className="mt-3">
-          <Button variant="secondary" onClick={onRetry}>
-            Try again
-          </Button>
+      <div className="flex items-start gap-3">
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+          className="mt-0.5 shrink-0 text-acc"
+        >
+          <path d="M10 14 14 10M8.5 15.5l-2 2a3.5 3.5 0 0 1-5-5l2-2M15.5 8.5l2-2a3.5 3.5 0 0 1 5 5l-2 2" />
+        </svg>
+        <div>
+          <p className="font-mono text-xs font-semibold uppercase tracking-wide text-acc">Error</p>
+          <p className="mt-1 text-sm text-ink">{message}</p>
+          {onRetry && (
+            <div className="mt-3">
+              <Button variant="secondary" onClick={onRetry}>
+                Try again
+              </Button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </Card>
   );
 }
@@ -221,19 +250,52 @@ export function Td({ children, className = "" }) {
   return <td className={`border-b border-line px-3 py-2.5 ${className}`}>{children}</td>;
 }
 
-export function PageHeader({ title, description, actions }) {
+export function PageHeader({ kicker, title, description, actions }) {
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-ink pb-4">
       <div>
-        <h1 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">{title}</h1>
-        {description && <p className="mt-1 font-mono text-xs uppercase tracking-wide text-ink-3">{description}</p>}
+        {kicker && <p className="mb-1 font-mono text-[11px] uppercase tracking-[.08em] text-acc">{kicker}</p>}
+        <h1 className="font-display text-3xl font-normal tracking-tight sm:text-5xl">{title}</h1>
+        {description && <p className="mt-1.5 text-sm text-ink-2">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
 
-export function StatCard({ label, value, tone = "slate" }) {
+export function AuthShell({ eyebrow, title, description, children, footer }) {
+  return (
+    <div className="viewbox-enter mx-auto grid min-h-dvh max-w-6xl gap-8 px-4 py-10 lg:grid-cols-[1.1fr_.9fr] lg:items-center lg:py-16">
+      <section>
+        <p className="font-mono text-[11px] uppercase tracking-[.08em] text-acc">{eyebrow}</p>
+        <h1 className="mt-3 font-display text-4xl leading-none tracking-tight sm:text-6xl">{title}</h1>
+        <p className="mt-4 max-w-md text-sm text-ink-2">{description}</p>
+        <div className="mt-8 flex items-center gap-4">
+          <svg
+            viewBox="0 0 120 120"
+            className="viewbox-spin-slow h-28 w-28 shrink-0"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle cx="60" cy="60" r="52" stroke="var(--color-ink)" strokeWidth="1" strokeDasharray="6 6" />
+            <circle cx="60" cy="60" r="38" stroke="var(--color-acc)" strokeWidth="1.5" strokeDasharray="48 18 14 18" />
+            <circle cx="60" cy="60" r="24" stroke="var(--color-ink)" strokeWidth="1.25" strokeDasharray="30 12" />
+            <circle cx="60" cy="60" r="9" stroke="var(--color-acc)" strokeWidth="1.5" />
+          </svg>
+          <p className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">
+            ViewBOX / Research Panel
+          </p>
+        </div>
+      </section>
+      <section>
+        {children}
+        {footer && <div className="mt-4">{footer}</div>}
+      </section>
+    </div>
+  );
+}
+
+export function StatCard({ label, value, tone = "slate", delta }) {
   const colors = {
     emerald: "border-l-deep",
     amber: "border-l-ink-3",
@@ -243,9 +305,10 @@ export function StatCard({ label, value, tone = "slate" }) {
     sky: "border-l-ink-3",
   };
   return (
-    <Card className={`!p-4 border-l-4 ${colors[tone] || colors.slate}`}>
-      <p className="font-mono text-xs uppercase tracking-wide text-ink-3">{label}</p>
-      <p className="mt-1 font-display text-3xl font-normal tabular-nums">{value}</p>
+    <Card className={`!p-4 border-t-2 border-t-ink border-l-4 ${colors[tone] || colors.slate}`}>
+      <p className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">{label}</p>
+      <p className="mt-1 font-display text-4xl font-normal tabular-nums text-ink">{value}</p>
+      {delta && <p className="mt-1 font-mono text-xs text-deep">{delta}</p>}
     </Card>
   );
 }

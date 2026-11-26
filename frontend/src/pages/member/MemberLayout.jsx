@@ -46,7 +46,10 @@ export default function MemberLayout() {
     <div className="min-h-dvh bg-paper text-ink">
       <header className="sticky top-0 z-30 min-h-14 border-b border-line-2 bg-paper/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-2">
-          <span className="font-display text-xl font-normal tracking-tight">ViewBox</span>
+          <span className="inline-flex items-center gap-2 font-display text-xl font-normal tracking-tight">
+            ViewBOX
+            <span className="inline-block h-2 w-2 bg-acc" aria-hidden="true" />
+          </span>
           <nav aria-label="Member" className="hidden items-center gap-1 sm:flex">
             <NavLink to="/home" className={linkCls}>
               Home

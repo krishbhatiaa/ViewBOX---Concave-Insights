@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api, tokens } from "../../api.js";
-import { Button, Card, Field, InlineError, Input, PageHeader, Select, Skeleton } from "../../components/ui.jsx";
+import { AuthShell, Button, Card, Field, InlineError, Input, Select, Skeleton } from "../../components/ui.jsx";
 import { clearLinkParams, clearPending, getLinkParams, getPending } from "../../lib/auth.js";
 import { GENDER_OPTIONS, INCOME_OPTIONS } from "../../lib/stages.js";
 
@@ -166,11 +166,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8">
-      <PageHeader
-        title="Tell us about you"
-        description="Your profile is filled once, right after your first login. It decides which surveys you qualify for."
-      />
+    <AuthShell
+      eyebrow={isExisting ? "Member profile / keep current" : "Signup / step 2 of 2"}
+      title={<>Tell us<br />about you.</>}
+      description="Your profile decides which surveys you qualify for. It is filled once, right after your first login."
+    >
       <Card>
         {resolveLoading ? (
           <div className="mb-3 space-y-2" role="status" aria-label="Checking your link">
@@ -182,11 +182,11 @@ export default function ProfilePage() {
             <InlineError message={resolveError} />
           </div>
         ) : resolve.source ? (
-          <p className="mb-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+          <p className="mb-3 rounded-[2px] border border-l-4 border-deep bg-deep/10 px-3 py-2 font-mono text-xs text-ink-2">
             You were invited via <b>{resolve.source}</b>
           </p>
         ) : resolve.referrer ? (
-          <p className="mb-3 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+          <p className="mb-3 rounded-[2px] border border-l-4 border-deep bg-deep/10 px-3 py-2 font-mono text-xs text-ink-2">
             Invited by <b>{resolve.referrer}</b>
           </p>
         ) : null}
@@ -262,6 +262,6 @@ export default function ProfilePage() {
           </Button>
         </form>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

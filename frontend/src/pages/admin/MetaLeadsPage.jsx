@@ -44,6 +44,7 @@ export default function MetaLeadsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
+        kicker="ADMIN / 07"
         title="Meta leads"
         description="Leads from POST /api/meta/lead, grouped by campaign and ad."
       />
@@ -63,8 +64,8 @@ export default function MetaLeadsPage() {
           </div>
 
           <Card className="!p-0">
-            <h2 className="px-4 pt-4 text-base font-semibold sm:px-5">Per-campaign breakdown</h2>
-            <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
+            <h2 className="border-b border-line px-4 py-3 font-mono text-[11px] uppercase tracking-[.08em] text-ink-2 sm:px-5">Per-campaign breakdown</h2>
+            <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
               {stats?.by_campaign?.length ? (
                 <Table>
                   <thead>
@@ -77,11 +78,11 @@ export default function MetaLeadsPage() {
                   </thead>
                   <tbody>
                     {stats.by_campaign.map((c) => (
-                      <tr key={c.campaign_id}>
-                        <Td className="font-medium">{c.campaign_id}</Td>
-                        <Td className="tabular-nums">{c.leads}</Td>
-                        <Td className="tabular-nums">{c.linked}</Td>
-                        <Td className="tabular-nums">{c.needs_review}</Td>
+                      <tr key={c.campaign_id} className="hover:bg-paper-2">
+                        <Td className="font-mono text-xs font-medium">{c.campaign_id}</Td>
+                        <Td className="font-mono text-xs tabular-nums">{c.leads}</Td>
+                        <Td className="font-mono text-xs tabular-nums">{c.linked}</Td>
+                        <Td className="font-mono text-xs tabular-nums">{c.needs_review}</Td>
                       </tr>
                     ))}
                   </tbody>
@@ -96,8 +97,8 @@ export default function MetaLeadsPage() {
           </Card>
 
           <Card className="!p-0">
-            <h2 className="px-4 pt-4 text-base font-semibold sm:px-5">All leads</h2>
-            <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
+            <h2 className="border-b border-line px-4 py-3 font-mono text-[11px] uppercase tracking-[.08em] text-ink-2 sm:px-5">All leads</h2>
+            <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
               {leads?.length ? (
                 <Table>
                   <thead>
@@ -112,15 +113,15 @@ export default function MetaLeadsPage() {
                   </thead>
                   <tbody>
                     {leads.map((l) => (
-                      <tr key={l.id}>
-                        <Td className="font-medium">{l.lead_id}</Td>
-                        <Td>{l.campaign_id || "—"}</Td>
-                        <Td>{l.ad_id || "—"}</Td>
+                      <tr key={l.id} className="hover:bg-paper-2">
+                        <Td className="font-mono text-xs font-medium">{l.lead_id}</Td>
+                        <Td className="font-mono text-xs">{l.campaign_id || "—"}</Td>
+                        <Td className="font-mono text-xs">{l.ad_id || "—"}</Td>
                         <Td>{l.member ? `${l.member} (#${l.member_id})` : "—"}</Td>
                         <Td>
                           <Tag tone={l.status === "linked" ? "emerald" : "amber"}>{l.status}</Tag>
                         </Td>
-                        <Td className="whitespace-nowrap text-slate-500 dark:text-slate-400">
+                        <Td className="whitespace-nowrap font-mono text-xs tabular-nums text-ink-2">
                           {l.received_at.slice(0, 16).replace("T", " ")}
                         </Td>
                       </tr>

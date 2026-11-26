@@ -64,6 +64,7 @@ export default function ReferralsPage() {
     <div className="space-y-5">
       {error && rows ? <RefreshBanner onRetry={load} /> : null}
       <PageHeader
+        kicker="MEMBER / REFERRALS"
         title="My referrals"
         description="Track every friend you invited — their stage and your bonus, so you never need to call the team."
       />
@@ -71,8 +72,8 @@ export default function ReferralsPage() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Your personal link</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Share it anywhere — the bonus lands when a friend completes a survey.</p>
+            <h2 className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">01 / Your personal link</h2>
+            <p className="mt-1 text-sm text-ink-2">Share it anywhere — the bonus lands when a friend completes a survey.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <CopyButton value={link} label="Copy link" />
@@ -84,17 +85,17 @@ export default function ReferralsPage() {
           value={link}
           aria-label="Your referral link"
           onFocus={(e) => e.target.select()}
-          className="mt-3 min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+          className="mt-3 min-h-11 w-full rounded-[2px] border border-line-2 bg-paper px-3 font-mono text-xs text-ink-2"
         />
       </Card>
 
       {rows.length ? (
         <Card className="!p-0">
-          <div className="flex items-center justify-between px-4 pt-4 sm:px-5">
-            <h2 className="text-base font-semibold">Friends invited</h2>
-            <span className="text-sm text-slate-500 dark:text-slate-400">{rows.length} total</span>
+          <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-5">
+            <h2 className="font-mono text-[11px] uppercase tracking-[.08em] text-ink-2">02 / Friends invited</h2>
+            <span className="font-mono text-xs tabular-nums text-ink-2">{rows.length} total</span>
           </div>
-          <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
+          <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
             <Table>
               <thead>
                 <tr>
@@ -108,17 +109,20 @@ export default function ReferralsPage() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.friend + r.updated_at}>
+                  <tr key={r.friend + r.updated_at} className="hover:bg-paper-2">
                     <Td className="font-medium">{r.friend}</Td>
-                    <Td className="tabular-nums">{r.phone}</Td>
+                    <Td className="font-mono text-xs tabular-nums text-ink-2">{r.phone}</Td>
                     <Td>
                       <StageTag stage={r.stage} />
                     </Td>
-                    <Td>
+                    <Td className="font-mono text-xs tabular-nums">
                       {r.bonus ? (
                         <span>
                           ₹{money(r.bonus.amount)} · <StageTag stage={r.bonus.status} />{" "}
-                          <span className="text-xs text-slate-500 dark:text-slate-400">{PAYOUT_LABEL[r.bonus.status] || r.bonus.status}</span>
+                          <span className="text-ink-2">{PAYOUT_LABEL[r.bonus.status] || r.bonus.status}</span>
+                          {r.bonus.utr && (
+                            <span className="mt-0.5 block font-mono text-[10px] text-ink-2">UTR {r.bonus.utr}</span>
+                          )}
                         </span>
                       ) : r.stage === "Completed" ? (
                         "—"
@@ -126,10 +130,10 @@ export default function ReferralsPage() {
                         "—"
                       )}
                     </Td>
-                    <Td className="max-w-48 whitespace-normal text-slate-500 dark:text-slate-400">
+                    <Td className="max-w-48 whitespace-normal text-sm text-ink-2">
                       {r.failure_reason || (STAGE_EXPLANATION[r.stage] && <p>{STAGE_EXPLANATION[r.stage]}</p>)}
                     </Td>
-                    <Td className="text-slate-500 dark:text-slate-400">{r.updated_at.slice(0, 10)}</Td>
+                    <Td className="font-mono text-xs tabular-nums text-ink-2">{r.updated_at.slice(0, 10)}</Td>
                   </tr>
                 ))}
               </tbody>

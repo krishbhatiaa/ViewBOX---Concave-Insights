@@ -109,7 +109,7 @@ export default function AdminReferralsPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Referrals" description="Move invited friends through Lead, Fit, Completed and Failed." />
+      <PageHeader kicker="ADMIN / 02" title="Referrals" description="Move invited friends through Lead, Fit, Completed and Failed." />
 
       <Card>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -134,11 +134,11 @@ export default function AdminReferralsPage() {
         <ErrorState message={error} onRetry={load} />
       ) : rows?.length ? (
         <Card className="!p-0">
-          <p className="px-4 pt-4 text-sm text-slate-500 sm:px-5">
+          <p className="border-b border-line px-4 py-3 font-mono text-xs text-ink-2 sm:px-5">
             {rows.length} referral{rows.length > 1 ? "s" : ""}
             {loading && " · updating…"}
           </p>
-          <div className="mt-2 px-4 pb-4 sm:px-5 sm:pb-5">
+          <div className="px-4 pb-4 pt-2 sm:px-5 sm:pb-5">
             <Table>
               <thead>
                 <tr>
@@ -154,20 +154,20 @@ export default function AdminReferralsPage() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.id}>
-                    <Td className="tabular-nums text-slate-500">{r.id}</Td>
+                  <tr key={r.id} className="hover:bg-paper-2">
+                    <Td className="font-mono text-xs tabular-nums text-ink-2">{r.id}</Td>
                     <Td>
                       <span className="font-medium">{r.member || "(deleted)"}</span>
-                      <span className="block text-xs text-slate-500">#{r.member_id} · {r.city || "—"}</span>
+                      <span className="block font-mono text-xs text-ink-2">#{r.member_id} · {r.city || "—"}</span>
                     </Td>
                     <Td>
                       {r.referrer || "—"}
-                      <span className="block text-xs text-slate-500">{r.referrer_id ? `#${r.referrer_id}` : "direct"}</span>
+                      <span className="block font-mono text-xs text-ink-2">{r.referrer_id ? `#${r.referrer_id}` : "direct"}</span>
                     </Td>
                     <Td>{r.source || "—"}</Td>
                     <Td><StageTag stage={r.stage} /></Td>
-                    <Td className="max-w-56 whitespace-normal text-xs text-slate-500">{r.failure_reason || "—"}</Td>
-                    <Td className="text-xs text-slate-500">{r.updated_at ? r.updated_at.slice(0, 10) : "—"}</Td>
+                    <Td className="max-w-56 whitespace-normal text-xs text-ink-2">{r.failure_reason || "—"}</Td>
+                    <Td className="font-mono text-xs tabular-nums text-ink-2">{r.updated_at ? r.updated_at.slice(0, 10) : "—"}</Td>
                     <Td>
                       <div className="flex flex-wrap gap-1.5">
                         <Button
@@ -215,7 +215,7 @@ export default function AdminReferralsPage() {
         title={dialog?.kind === "Completed" ? "Mark as completed" : dialog?.kind === "Failed" ? "Mark as failed" : "Mark as Fit"}
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-300">
+          <p className="text-sm text-ink-2">
             {dialog?.kind === "Fit"
               ? `Confirm that ${dialog?.row?.member || "this friend"} is a good fit.`
               : dialog?.kind === "Completed"
@@ -238,10 +238,10 @@ export default function AdminReferralsPage() {
                   type="checkbox"
                   checked={quality}
                   onChange={(e) => setQuality(e.target.checked)}
-                  className="h-5 w-5 rounded border-slate-300 accent-indigo-600"
+                  className="h-5 w-5 rounded-[2px] border-line-2 accent-acc"
                 />
                 Quality check passed
-                <span className="text-xs text-slate-500">(creates Pending payouts)</span>
+                <span className="font-mono text-xs text-ink-2">(creates Pending payouts)</span>
               </label>
             </>
           )}
