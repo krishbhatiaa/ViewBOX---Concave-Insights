@@ -10,8 +10,8 @@ def seed():
                  ("Website", "website"), ("Referral", "referral"), ("LinkedIn", "linkedin"), ("Meta Ads", "meta_ads")]:
         db.add(Source(name=n, type=t, unique_slug=n.lower().replace(" - ", "-").replace(" ", "-")))
     db.flush(); S = {s.name: s.id for s in db.query(Source)}
-    def mem(i, name, dob, g, city, inc, ints, src, ref=None, stage="Lead", why=None):
-        m = Member(phone=f"900000000{i}", name=name, dob=dob, gender=g, city=city, income_range=inc, interests=ints, source_id=S[src], first_touch_source_id=S[src], referrer_id=ref)
+    def mem(i, name, dob, g, city, inc, ints, src, ref=None, stage="Lead", why=None, device_id=None):
+        m = Member(phone=f"9000000{i:03d}", name=name, dob=dob, gender=g, city=city, income_range=inc, interests=ints, source_id=S[src], first_touch_source_id=S[src], referrer_id=ref, is_flagged=False, device_id=device_id)
         db.add(m); db.flush(); db.add(Referral(referrer_id=ref, referred_member_id=m.id, stage=stage, failure_reason=why)); return m
     p = mem(1, "Priya Shah", date(1995, 4, 12), "Female", "Mumbai", "10L+", "food,fashion", "Website")
     mem(2, "Rohan Mehta", date(1998, 1, 5), "Male", "Pune", "5-10L", "tech", "Referral", p.id)
@@ -20,6 +20,17 @@ def seed():
     mem(5, "Meera Nair", date(1988, 2, 2), "Female", "Chennai", "<5L", "travel", "Instagram")
     mem(6, "Anita Rao", date(date.today().year - 17, 1, 1), "Female", "Mumbai", "<5L", "food", "WhatsApp - Mumbai Group")
     mem(7, "Vikram Singh", date(1985, 8, 8), "Male", "Delhi", "10L+", "finance,tech", "LinkedIn", p.id, "Failed", "Did not match profile criteria")
+    ring = [mem(10, "Ring Demo A", date(1991, 3, 1), "Female", "Mumbai", "5-10L", "food", "Referral"),
+            mem(11, "Ring Demo B", date(1992, 4, 2), "Male", "Pune", "5-10L", "tech", "Referral"),
+            mem(12, "Ring Demo C", date(1993, 5, 3), "Female", "Delhi", "5-10L", "travel", "Referral")]
+    for member, referrer in zip(ring, ring[1:] + ring[:1]):
+        member.referrer_id = referrer.id
+        db.flush()
+        db.query(Referral).filter_by(referred_member_id=member.id).update({"referrer_id": referrer.id})
+    mem(13, "Device Twin A", date(1994, 6, 4), "Male", "Mumbai", "5-10L", "tech", "Website",
+        device_id="demo-shared-device")
+    mem(14, "Device Twin B", date(1995, 7, 5), "Female", "Mumbai", "5-10L", "food", "Website",
+        device_id="demo-shared-device")
     now = datetime.utcnow()
     z = Survey(title="Zomato Dining Habits", description="food dining delivery", deadline=now + timedelta(days=10), quota=50, amount=Decimal("300.00"))
     z.rules = [SurveyRule(rule_type="age", operator="between", value="18-35", strict_or_flexible="strict"), SurveyRule(rule_type="city", operator="in", value="Mumbai,Pune,Delhi", strict_or_flexible="flexible")]
@@ -31,6 +42,6 @@ def seed():
     db.add(Completion(member_id=k.id, survey_id=z.id, completed_at=now - timedelta(days=20), quality_check_passed=True))
     kr = db.query(Referral).filter_by(referred_member_id=k.id).first()
     db.add_all([Payout(member_id=k.id, survey_id=z.id, amount=Decimal("300.00"), status="Paid"), Payout(member_id=p.id, survey_id=z.id, referral_id=kr.id, amount=Decimal("100.00"), status="Pending")]); db.commit(); db.close()
-    print("Seeded. Admin: admin@concave.test / admin123 | Members: phones 9000000001..9000000007")
+    print("Seeded. Admin: admin@concave.test / admin123 | Members: 9000000001..9000000007, ring 9000000010..9000000012, device pair 9000000013..9000000014")
 
 if __name__ == "__main__": seed()
