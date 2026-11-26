@@ -1,7 +1,10 @@
 from datetime import datetime, date, timedelta
+import logging
+
 from sqlalchemy.exc import IntegrityError
 from .models import Completion, AdminOverride, EligibilityResult
 
+log = logging.getLogger("viewbox.eligibility")
 COOL_OFF_DAYS = 90  # ~3 months
 
 def age_of(dob: date, today: date) -> int:
@@ -45,20 +48,24 @@ def next_eligible_date(db, m, now=None):
     return None
 
 def evaluate(db, m, s, now=None):
-    now = now or datetime.utcnow()
-    if db.query(AdminOverride).filter_by(member_id=m.id, survey_id=s.id).first():
-        return "Approved", "Approved by the ops team after manual review."
-    d = next_eligible_date(db, m, now)
-    if d: return "Rejected", f"Not eligible: you completed a survey recently. You can join again on {d:%d %b %Y}."
-    if s.status != "live": return "Rejected", "Not eligible: this survey is not open."
-    if s.deadline and now > s.deadline: return "Rejected", f"Not eligible: this survey closed on {s.deadline:%d %b %Y}."
-    if s.quota and db.query(Completion).filter_by(survey_id=s.id, quality_check_passed=True).count() >= s.quota:
-        return "Rejected", "Not eligible: this survey has reached its quota."
-    soft = []
-    for r in s.rules:
-        ok, msg = _check(r, m, now.date())
-        if not ok:
-            if r.strict_or_flexible == "strict": return "Rejected", f"Not eligible: {msg}."
-            soft.append(msg)
-    if soft: return "Waitlisted", "Waitlisted: " + "; ".join(soft) + ". Ops may still approve you."
-    return "Approved", "You meet all the requirements."
+    try:
+        now = now or datetime.utcnow()
+        if db.query(AdminOverride).filter_by(member_id=m.id, survey_id=s.id).first():
+            return "Approved", "Approved by the ops team after manual review."
+        d = next_eligible_date(db, m, now)
+        if d: return "Rejected", f"Not eligible: you completed a survey recently. You can join again on {d:%d %b %Y}."
+        if s.status != "live": return "Rejected", "Not eligible: this survey is not open."
+        if s.deadline and now > s.deadline: return "Rejected", f"Not eligible: this survey closed on {s.deadline:%d %b %Y}."
+        if s.quota and db.query(Completion).filter_by(survey_id=s.id, quality_check_passed=True).count() >= s.quota:
+            return "Rejected", "Not eligible: this survey has reached its quota."
+        soft = []
+        for r in s.rules:
+            ok, msg = _check(r, m, now.date())
+            if not ok:
+                if r.strict_or_flexible == "strict": return "Rejected", f"Not eligible: {msg}."
+                soft.append(msg)
+        if soft: return "Waitlisted", "Waitlisted: " + "; ".join(soft) + ". Ops may still approve you."
+        return "Approved", "You meet all the requirements."
+    except Exception as exc:
+        log.error("eligibility evaluation failed: %s", type(exc).__name__)
+        return "Rejected", "System error — please retry"

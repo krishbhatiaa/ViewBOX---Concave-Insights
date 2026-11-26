@@ -1,6 +1,7 @@
 """Admin panel: login, sources, surveys, respondent grid + export, referral stages,
 payout ledger, source dashboard, fraud queue and manual eligibility overrides."""
 import json
+import logging
 from datetime import datetime
 from typing import Literal, Optional
 
@@ -20,6 +21,7 @@ from ..services import audit, grid as grid_svc, sheets
 from ..services.referral import set_stage as apply_stage
 from ..services.rule_suggest import suggest_rules
 
+log = logging.getLogger("viewbox.admin")
 router = APIRouter()
 
 
@@ -197,24 +199,29 @@ def batch_approve_payouts(request: Request, b: dict = Body(...), t=Depends(admin
     ip = request.client.host if request.client else None
     actor_id, role = audit.identity(t)
     results = []
-    for pid in ids:
-        if not isinstance(pid, int):
-            results.append({"id": pid, "ok": False, "error": "Invalid payout id."})
-            continue
-        with db.begin_nested():
-            p = db.get(Payout, pid)
-            if not p:
-                results.append({"id": pid, "ok": False, "error": "Payout not found."})
+    try:
+        for pid in ids:
+            if not isinstance(pid, int):
+                results.append({"id": pid, "ok": False, "error": "Invalid payout id."})
                 continue
-            if p.status == "Paid":
-                results.append({"id": pid, "ok": False, "error": "Paid payouts cannot be re-approved."})
-                continue
-            changed = p.status != "Approved"
-            p.status, p.approved_by, p.approved_at = "Approved", t["sub"], datetime.utcnow()
-            if changed:
-                audit.log(actor_id, role, "payout_status_changed", "payout", pid, {"status": "Approved"}, ip, db=db)
-            results.append({"id": pid, "ok": True, "status": p.status, "changed": changed})
-    db.commit()
+            with db.begin_nested():
+                p = db.get(Payout, pid)
+                if not p:
+                    results.append({"id": pid, "ok": False, "error": "Payout not found."})
+                    continue
+                if p.status == "Paid":
+                    results.append({"id": pid, "ok": False, "error": "Paid payouts cannot be re-approved."})
+                    continue
+                changed = p.status != "Approved"
+                p.status, p.approved_by, p.approved_at = "Approved", t["sub"], datetime.utcnow()
+                if changed:
+                    audit.log(actor_id, role, "payout_status_changed", "payout", pid, {"status": "Approved"}, ip, db=db)
+                results.append({"id": pid, "ok": True, "status": p.status, "changed": changed})
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        log.error("batch payout approval failed: %s", type(exc).__name__)
+        raise HTTPException(500, "Could not approve payouts. Please try again.") from exc
     return {"results": results, "approved": sum(r["ok"] for r in results),
             "failed": sum(not r["ok"] for r in results)}
 
@@ -227,18 +234,26 @@ def payout_status(request: Request, pid: int, b: Optional[PayoutStatusIn] = Body
     val = (b and b.status) or status
     if not val:
         raise HTTPException(422, "Please give a status of Approved or Paid.")
-    p = db.get(Payout, pid)
-    if not p:
-        raise HTTPException(404, "Payout not found.")
-    if val == "Paid" and p.status != "Approved":
-        raise HTTPException(409, "Ops must approve a payout before it can be marked Paid.")
-    p.status = val
-    if val == "Approved":
-        p.approved_by, p.approved_at = t["sub"], datetime.utcnow()
-    actor_id, role = audit.identity(t)
-    audit.log(actor_id, role, "payout_status_changed", "payout", pid, {"status": val},
-              request.client.host if request.client else None, db=db)
-    db.commit()
+    try:
+        p = db.get(Payout, pid)
+        if not p:
+            raise HTTPException(404, "Payout not found.")
+        if val == "Paid" and p.status != "Approved":
+            raise HTTPException(409, "Ops must approve a payout before it can be marked Paid.")
+        p.status = val
+        if val == "Approved":
+            p.approved_by, p.approved_at = t["sub"], datetime.utcnow()
+        actor_id, role = audit.identity(t)
+        audit.log(actor_id, role, "payout_status_changed", "payout", pid, {"status": val},
+                  request.client.host if request.client else None, db=db)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        log.error("payout status change failed: %s", type(exc).__name__)
+        raise HTTPException(500, "Could not update this payout. Please try again.") from exc
     return {"ok": True}
 
 
