@@ -3,7 +3,7 @@ import re
 from datetime import date, datetime
 from typing import Any, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class PhoneIn(BaseModel):
@@ -69,6 +69,22 @@ class SurveyIn(BaseModel):
     quota: Optional[int] = None
     amount: float = 0
     rules: List[RuleIn] = []
+
+
+class SurveyPatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Optional[Literal["draft", "live", "closed"]] = None
+    deadline: Optional[datetime] = None
+    quota: Optional[int] = Field(default=None, gt=0)
+    amount: Optional[float] = Field(default=None, ge=0)
+
+    @field_validator("deadline")
+    @classmethod
+    def _future(cls, v):
+        if v is not None and v <= datetime.utcnow():
+            raise ValueError("deadline must be in the future")
+        return v
 
 
 class SuggestRulesIn(BaseModel):

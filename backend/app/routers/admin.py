@@ -13,7 +13,7 @@ from ..deps import admin_auth, db_dep, link_for, slugify
 from ..models import (AdminOverride, AdminUser, Completion, FraudFlag, Member, MetaLead, Payout,
                       Referral, Source, Survey, SurveyRule)
 from ..schemas import (AdminLogin, FlagReviewIn, OverrideIn, PayoutStatusIn, SourceIn, StageIn,
-                       SuggestRulesIn, SurveyIn)
+                       SuggestRulesIn, SurveyIn, SurveyPatchIn)
 from ..services import grid as grid_svc
 from ..services.referral import set_stage as apply_stage
 from ..services.rule_suggest import suggest_rules
@@ -68,6 +68,21 @@ def add_survey(b: SurveyIn, _=Depends(admin_auth), db: Session = Depends(db_dep)
     db.add(s)
     db.commit()
     return {"id": s.id}
+
+
+@router.patch("/api/admin/surveys/{sid}")
+def patch_survey(sid: int, b: SurveyPatchIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    s = db.get(Survey, sid)
+    if not s:
+        raise HTTPException(404, "Survey not found.")
+    for field, value in b.model_dump(exclude_unset=True).items():
+        setattr(s, field, value)
+    db.commit()
+    return {"id": s.id, "title": s.title, "status": s.status,
+            "deadline": s.deadline and s.deadline.date().isoformat(), "quota": s.quota, "amount": s.amount,
+            "completions": db.query(Completion).filter_by(survey_id=s.id).count(),
+            "rules": [{"rule_type": r.rule_type, "value": r.value, "strict_or_flexible": r.strict_or_flexible}
+                      for r in s.rules]}
 
 
 @router.post("/api/admin/suggest-rules")
