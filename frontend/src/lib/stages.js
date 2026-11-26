@@ -1,21 +1,3 @@
-export const STAGE_TONE = {
-  Approved: "emerald",
-  Completed: "emerald",
-  Paid: "emerald",
-  Rejected: "rose",
-  Failed: "rose",
-  Waitlisted: "amber",
-  Fit: "amber",
-  Pending: "amber",
-  Lead: "sky",
-  ApprovedPay: "sky",
-};
-
-export function toneForStage(stage) {
-  if (stage === "Approved") return "emerald";
-  return STAGE_TONE[stage] || "slate";
-}
-
 export const STAGE_EXPLANATION = {
   Lead: "You have signed up. Our team is checking your profile against survey criteria.",
   Fit: "Your profile matches. You are in the pool for upcoming surveys.",

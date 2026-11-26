@@ -15,10 +15,6 @@ export const tokens = {
     if (value) localStorage.setItem(member ? "mt" : "at", value);
     else localStorage.removeItem(member ? "mt" : "at");
   },
-  clearAll() {
-    localStorage.removeItem("mt");
-    localStorage.removeItem("at");
-  },
 };
 
 function parseDetail(detail) {

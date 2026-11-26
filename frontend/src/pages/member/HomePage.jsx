@@ -133,14 +133,13 @@ export default function HomePage() {
 
   if (loading && !data) return <LoadingCard label="Loading your dashboard…" />;
   if (error && !data) return <ErrorState message={error} onRetry={load} />;
-  if (!data) return null;
 
   const { me, surveys, referrals, status } = data;
   const completedFriends = referrals.filter((r) => r.stage === "Completed").length;
 
   return (
     <div className="space-y-5">
-      {error && data ? <RefreshBanner onRetry={load} /> : null}
+      {error ? <RefreshBanner onRetry={load} /> : null}
       <PageHeader
         title={`Hi ${me.name}`}
         description={`${me.phone} · ${me.city || "—"}${referrals.length ? ` · ${referrals.length} friend${referrals.length > 1 ? "s" : ""} invited (${completedFriends} completed)` : ""}`}

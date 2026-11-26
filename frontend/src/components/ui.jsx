@@ -117,7 +117,7 @@ export function StageTag({ stage }) {
           ? "amber"
           : stage === "Lead"
             ? "sky"
-            : stage === "Approved" || stage === "Approved by ops"
+            : stage === "Approved by ops"
               ? "indigo"
               : "slate";
   return <Tag tone={tone}>{stage}</Tag>;

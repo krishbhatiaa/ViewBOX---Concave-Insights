@@ -85,3 +85,18 @@ def test_layout_redirects_run_in_effect_not_during_render():
         assert f"if (!token) navigate({route}, {{ replace: true }});" in text
         assert "if (!token) return null;" in text
         assert "if (!tokens.get(" not in text, page
+
+
+def test_dead_code_and_unused_theme_tokens_removed():
+    stages = _read("lib/stages.js")
+    assert "STAGE_TONE" not in stages and "toneForStage" not in stages
+    assert "clearAll" not in _read("api.js")
+
+    home = _read("pages/member/HomePage.jsx")
+    assert "if (!data) return null;" not in home
+    assert "error && data ?" not in home
+    assert 'stage === "Approved" || stage === "Approved by ops"' not in _read("components/ui.jsx")
+
+    css = _read("index.css")
+    for token in ("--color-accent", "--color-ink:", "--color-surface:", "--radius-card", "--spacing-card"):
+        assert token not in css
