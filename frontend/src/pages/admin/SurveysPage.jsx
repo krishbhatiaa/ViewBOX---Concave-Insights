@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../api.js";
+import { api, money } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
@@ -251,7 +251,7 @@ export default function SurveysPage() {
                       {s.completions}
                       {s.quota ? ` / ${s.quota}` : ""}
                     </Td>
-                    <Td className="font-medium">₹{s.amount}</Td>
+                    <Td className="font-medium">₹{money(s.amount)}</Td>
                     <Td className="max-w-64 whitespace-normal">
                       <div className="flex flex-wrap gap-1">
                         {s.rules.length ? (

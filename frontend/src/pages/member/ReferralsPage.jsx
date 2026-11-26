@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../api.js";
+import { api, money } from "../../api.js";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Card,
@@ -100,7 +100,7 @@ export default function ReferralsPage() {
                     <Td>
                       {r.bonus ? (
                         <span>
-                          ₹{r.bonus.amount} · <StageTag stage={r.bonus.status} />{" "}
+                          ₹{money(r.bonus.amount)} · <StageTag stage={r.bonus.status} />{" "}
                           <span className="text-xs text-slate-500 dark:text-slate-400">{PAYOUT_LABEL[r.bonus.status] || r.bonus.status}</span>
                         </span>
                       ) : r.stage === "Completed" ? (

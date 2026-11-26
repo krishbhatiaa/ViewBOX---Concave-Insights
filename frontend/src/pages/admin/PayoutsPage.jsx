@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../api.js";
+import { api, money } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
@@ -80,7 +80,7 @@ export default function PayoutsPage() {
             {["Pending", "Approved", "Paid"].map((s) => (
               <Card key={s} className="!p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{s} total</p>
-                <p className="mt-1 text-2xl font-bold">₹{totals[s] || 0}</p>
+                <p className="mt-1 text-2xl font-bold">₹{money(totals[s] || 0)}</p>
               </Card>
             ))}
           </div>
@@ -107,7 +107,7 @@ export default function PayoutsPage() {
                       <Td className="tabular-nums text-slate-500">{p.id}</Td>
                       <Td className="font-medium">{p.member}</Td>
                       <Td>{p.kind}</Td>
-                      <Td className="font-medium tabular-nums">₹{p.amount}</Td>
+                      <Td className="font-medium tabular-nums">₹{money(p.amount)}</Td>
                       <Td>
                         <StageTag stage={p.status} />
                       </Td>

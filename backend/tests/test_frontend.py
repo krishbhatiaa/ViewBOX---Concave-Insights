@@ -68,3 +68,10 @@ def test_grid_filter_fetch_errors_are_not_swallowed():
     assert ".catch(() => {})" not in grid
     assert "filterError" in grid and "setFilterRetry" in grid
     assert "Failed to load filters" in grid
+
+
+def test_money_renders_two_decimal_places():
+    assert "export function money(value)" in _read("api.js")
+    for page in ("pages/admin/PayoutsPage.jsx", "pages/admin/SurveysPage.jsx",
+                 "pages/member/HomePage.jsx", "pages/member/ReferralsPage.jsx"):
+        assert "money(" in _read(page), page

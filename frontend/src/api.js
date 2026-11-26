@@ -81,6 +81,10 @@ export async function api(path, { method = "GET", body, role, raw = false } = {}
   return ct.includes("json") ? res.json() : res.blob();
 }
 
+export function money(value) {
+  return Number(value || 0).toFixed(2);
+}
+
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

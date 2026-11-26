@@ -1,13 +1,14 @@
 """Referral pipeline: Lead -> Fit -> Completed/Failed, completions, payouts, cool-off."""
 import os
 from datetime import datetime
+from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Completion, Payout, Referral, Survey
 
-BONUS = float(os.getenv("REFERRAL_BONUS", "100"))
+BONUS = Decimal(os.getenv("REFERRAL_BONUS", "100"))
 
 
 def set_stage(db: Session, rid: int, stage: str, failure_reason: str | None,

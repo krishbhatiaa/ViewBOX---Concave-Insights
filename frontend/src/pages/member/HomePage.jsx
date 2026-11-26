@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../api.js";
+import { api, money } from "../../api.js";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Card,
@@ -57,7 +57,7 @@ function StatusPanel({ status }) {
               {status.payouts.map((p, i) => (
                 <tr key={i}>
                   <Td>{p.kind}</Td>
-                  <Td className="font-medium">₹{p.amount}</Td>
+                  <Td className="font-medium">₹{money(p.amount)}</Td>
                   <Td>
                     <StageTag stage={p.status} />
                     <span className="ml-2 text-xs text-slate-500">{PAYOUT_LABEL[p.status] || p.status}</span>
@@ -96,7 +96,7 @@ function SurveyCard({ survey }) {
       )}
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
         {survey.description}
-        {survey.amount ? ` · ₹${survey.amount}` : ""}
+        {survey.amount ? ` · ₹${money(survey.amount)}` : ""}
         {survey.deadline ? ` · closes ${survey.deadline.slice(0, 10)}` : ""}
       </p>
       <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{survey.reason}</p>

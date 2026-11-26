@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from sqlalchemy import (create_engine, Column, Integer, String, DateTime, Date, Boolean, Text,
-                        ForeignKey, Float, UniqueConstraint)
+                        ForeignKey, Numeric, UniqueConstraint)
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 engine = create_engine(os.getenv("DATABASE_URL", "sqlite:///./viewbox.db"), connect_args={"check_same_thread": False})
@@ -31,7 +31,7 @@ class Survey(Base):
     __tablename__ = "surveys"
     id = Column(Integer, primary_key=True); title = Column(String, nullable=False); description = Column(Text, default="")
     status = Column(String, default="live"); deadline = Column(DateTime); quota = Column(Integer)
-    amount = Column(Float, default=0); created_at = Column(DateTime, default=now)
+    amount = Column(Numeric(10, 2), default=0); created_at = Column(DateTime, default=now)
     rules = relationship("SurveyRule", cascade="all, delete-orphan")
 
 class SurveyRule(Base):
@@ -59,7 +59,7 @@ class Completion(Base):
 class Payout(Base):
     __tablename__ = "payouts"
     id = Column(Integer, primary_key=True); member_id = FK("members.id"); survey_id = FK("surveys.id"); referral_id = FK("referrals.id")
-    amount = Column(Float); status = Column(String, default="Pending"); approved_by = Column(String); approved_at = Column(DateTime)
+    amount = Column(Numeric(10, 2)); status = Column(String, default="Pending"); approved_by = Column(String); approved_at = Column(DateTime)
 
 class ImportLog(Base):
     __tablename__ = "import_logs"

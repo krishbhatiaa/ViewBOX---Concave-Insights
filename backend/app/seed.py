@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, date
+from decimal import Decimal
 from .models import *
 from . import security as sec
 
@@ -20,16 +21,16 @@ def seed():
     mem(6, "Anita Rao", date(date.today().year - 17, 1, 1), "Female", "Mumbai", "<5L", "food", "WhatsApp - Mumbai Group")
     mem(7, "Vikram Singh", date(1985, 8, 8), "Male", "Delhi", "10L+", "finance,tech", "LinkedIn", p.id, "Failed", "Did not match profile criteria")
     now = datetime.utcnow()
-    z = Survey(title="Zomato Dining Habits", description="food dining delivery", deadline=now + timedelta(days=10), quota=50, amount=300)
+    z = Survey(title="Zomato Dining Habits", description="food dining delivery", deadline=now + timedelta(days=10), quota=50, amount=Decimal("300.00"))
     z.rules = [SurveyRule(rule_type="age", operator="between", value="18-35", strict_or_flexible="strict"), SurveyRule(rule_type="city", operator="in", value="Mumbai,Pune,Delhi", strict_or_flexible="flexible")]
-    t = Survey(title="Titan Watch Preferences", description="watches fashion lifestyle", deadline=now + timedelta(days=12), quota=40, amount=400)
+    t = Survey(title="Titan Watch Preferences", description="watches fashion lifestyle", deadline=now + timedelta(days=12), quota=40, amount=Decimal("400.00"))
     t.rules = [SurveyRule(rule_type="age", operator="between", value="25-45", strict_or_flexible="strict"), SurveyRule(rule_type="income", operator="in", value="5-10L,10L+", strict_or_flexible="flexible")]
-    i = Survey(title="ICICI Life Insurance Needs", description="finance insurance planning", deadline=now + timedelta(days=14), quota=30, amount=500)
+    i = Survey(title="ICICI Life Insurance Needs", description="finance insurance planning", deadline=now + timedelta(days=14), quota=30, amount=Decimal("500.00"))
     i.rules = [SurveyRule(rule_type="age", operator="between", value="30-60", strict_or_flexible="strict")]
     db.add_all([z, t, i]); db.flush()
     db.add(Completion(member_id=k.id, survey_id=z.id, completed_at=now - timedelta(days=20), quality_check_passed=True))
     kr = db.query(Referral).filter_by(referred_member_id=k.id).first()
-    db.add_all([Payout(member_id=k.id, survey_id=z.id, amount=300, status="Paid"), Payout(member_id=p.id, survey_id=z.id, referral_id=kr.id, amount=100, status="Pending")]); db.commit(); db.close()
+    db.add_all([Payout(member_id=k.id, survey_id=z.id, amount=Decimal("300.00"), status="Paid"), Payout(member_id=p.id, survey_id=z.id, referral_id=kr.id, amount=Decimal("100.00"), status="Pending")]); db.commit(); db.close()
     print("Seeded. Admin: admin@concave.test / admin123 | Members: phones 9000000001..9000000007")
 
 if __name__ == "__main__": seed()
