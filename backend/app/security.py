@@ -1,6 +1,8 @@
 import base64, hashlib, hmac, json, os, secrets, time
 from fastapi import HTTPException
 
+from .services.ratelimit import rate_limiter
+
 SECRET = os.getenv("APP_SECRET", "dev-secret-change-me").encode()
 ALLOWED_ALGORITHMS = ["HS256"]
 TOKEN_ROLES = ("member", "admin")
@@ -73,24 +75,19 @@ def check_otp(phone: str, otp: str):
 def mask(phone: str) -> str:
     return phone[:2] + "X" * 6 + phone[-2:] if phone and len(phone) >= 4 else "XXXX"
 
-_hits: dict = {}
-
 def reset_rate_limits():
-    """Clear the per-IP counters (used by tests; a restart clears them in production)."""
-    _hits.clear()
+    """Clear per-IP counters (used by tests; the default backend restarts with the process)."""
+    if hasattr(rate_limiter, "reset"):
+        rate_limiter.reset()
 
 def enforce_ip_limit(request, bucket: str, limit: int | None = None, window: int = 3600):
     """Sliding-window rate limit per IP for a bucket such as 'otp' or 'signup'.
 
     Limit comes from SIGNUP_IP_LIMIT (default 60/hour per bucket). Raises 429.
-    In-memory like the OTP limit; Redis behind a proxy in production.
+    Uses the configured RateLimiter (in-memory by default, Redis for production).
     """
     limit = int(os.getenv("SIGNUP_IP_LIMIT", "60")) if limit is None else limit
     ip = ((request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
           or (request.client.host if request.client else "unknown"))
-    key = f"{bucket}:{ip}"
-    t = time.time()
-    hits = [x for x in _hits.get(key, []) if t - x < window]
-    if len(hits) >= limit:
+    if not rate_limiter.allow(f"{bucket}:{ip}", limit, window):
         raise HTTPException(429, "Too many requests from this network. Please try again in an hour.")
-    _hits[key] = hits + [t]

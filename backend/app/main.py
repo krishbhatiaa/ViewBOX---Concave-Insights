@@ -12,12 +12,15 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from .models import Base, engine
 from .routers import admin, auth, importer, member, meta
+from .services.ratelimit import rate_limiter, warn_if_inmemory_multiworker
 
 log = logging.getLogger("viewbox")
 
 # CORS: FRONTEND_URL may be comma-separated (e.g. Vite dev server + built app)
 _origins = [o.strip() for o in os.getenv("FRONTEND_URL", "http://localhost:8000").split(",") if o.strip()]
 _origins += ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+warn_if_inmemory_multiworker(rate_limiter, int(os.getenv("WEB_CONCURRENCY", os.getenv("WORKERS", "1"))))
 
 app = FastAPI(title="ViewBox Panel System")
 app.add_middleware(CORSMiddleware, allow_origins=list(dict.fromkeys(_origins)),
