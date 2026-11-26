@@ -43,7 +43,7 @@ def evaluate(db, m, s, now=None):
     if d: return "Rejected", f"Not eligible: you completed a survey recently. You can join again on {d:%d %b %Y}."
     if s.status != "live": return "Rejected", "Not eligible: this survey is not open."
     if s.deadline and now > s.deadline: return "Rejected", f"Not eligible: this survey closed on {s.deadline:%d %b %Y}."
-    if s.quota and db.query(Completion).filter_by(survey_id=s.id).count() >= s.quota:
+    if s.quota and db.query(Completion).filter_by(survey_id=s.id, quality_check_passed=True).count() >= s.quota:
         return "Rejected", "Not eligible: this survey has reached its quota."
     soft = []
     for r in s.rules:
