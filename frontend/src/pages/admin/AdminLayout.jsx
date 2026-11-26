@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { tokens } from "../../api.js";
+import ThemeToggle from "../../components/ThemeToggle.jsx";
 import { Button } from "../../components/ui.jsx";
 
 const tabs = [
@@ -52,7 +53,8 @@ export default function AdminLayout() {
               </NavLink>
             ))}
           </nav>
-          <div className="order-2 sm:order-3">
+          <div className="order-2 flex items-center gap-1 sm:order-3">
+            <ThemeToggle />
             <Button
               variant="ghost"
               className="min-h-11 !px-2 !text-xs"

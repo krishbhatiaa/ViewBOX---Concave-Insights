@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { tokens } from "./api.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
+import { applyTheme } from "./components/ThemeToggle.jsx";
 import { Button, Card, PageHeader } from "./components/ui.jsx";
 import AdminLayout from "./pages/admin/AdminLayout.jsx";
 import AdminLoginPage from "./pages/admin/AdminLoginPage.jsx";
@@ -44,6 +46,10 @@ function NotFound() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const saved = localStorage.getItem("vb_theme");
+    applyTheme(["system", "light", "dark"].includes(saved) ? saved : "system");
+  }, []);
   return (
     <ErrorBoundary>
       <ToastProvider>

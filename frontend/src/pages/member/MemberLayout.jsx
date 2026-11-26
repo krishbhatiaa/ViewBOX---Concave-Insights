@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { tokens } from "../../api.js";
+import ThemeToggle from "../../components/ThemeToggle.jsx";
 import { Button } from "../../components/ui.jsx";
 
 const linkCls = ({ isActive }) =>
@@ -30,16 +31,19 @@ export default function MemberLayout() {
               My referrals
             </NavLink>
           </nav>
-          <Button
-            variant="ghost"
-            className="min-h-11 !px-2 !text-xs"
-            onClick={() => {
-              tokens.set(true, null);
-              navigate("/login", { replace: true });
-            }}
-          >
-            Log out
-          </Button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              className="min-h-11 !px-2 !text-xs"
+              onClick={() => {
+                tokens.set(true, null);
+                navigate("/login", { replace: true });
+              }}
+            >
+              Log out
+            </Button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-5">

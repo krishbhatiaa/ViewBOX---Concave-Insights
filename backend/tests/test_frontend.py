@@ -100,3 +100,17 @@ def test_dead_code_and_unused_theme_tokens_removed():
     css = _read("index.css")
     for token in ("--color-accent", "--color-ink:", "--color-surface:", "--radius-card", "--spacing-card"):
         assert token not in css
+
+
+def test_theme_toggle_is_persisted_and_mounted_in_both_layouts():
+    toggle = _read("components/ThemeToggle.jsx")
+    assert 'CHOICES = ["system", "light", "dark"]' in toggle
+    assert 'localStorage.getItem("vb_theme")' in toggle
+    assert 'localStorage.setItem("vb_theme"' in toggle
+    assert "document.documentElement.dataset.theme" in toggle
+    assert "applyTheme" in _read("App.jsx")
+    for layout in ("pages/member/MemberLayout.jsx", "pages/admin/AdminLayout.jsx"):
+        assert "ThemeToggle" in _read(layout), layout
+    css = _read("index.css")
+    assert '@custom-variant dark' in css
+    assert '[data-theme="dark"]' in css
