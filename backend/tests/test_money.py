@@ -20,7 +20,9 @@ def test_money_stores_exact_two_decimal_places():
         assert p.amount == Decimal("300.00")
 
         db.delete(p)
+        db.flush()
         db.delete(s)
+        db.flush()
         db.delete(m)
         db.commit()
     finally:

@@ -1,14 +1,20 @@
 def test_admin_list_endpoints_return_404_for_dangling_references(client, admin):
-    from app.models import AdminOverride, MetaLead, Payout, SessionLocal
+    from sqlalchemy import create_engine, text
 
-    db = SessionLocal()
-    payout = Payout(member_id=999999, amount=10, status="Pending")
-    lead = MetaLead(lead_id="dangling-lead-1", member_id=999999)
-    override = AdminOverride(member_id=999999, survey_id=999999, reason="dangling reference")
-    db.add_all([payout, lead, override])
-    db.commit()
-    created = ((Payout, payout.id), (MetaLead, lead.id), (AdminOverride, override.id))
-    db.close()
+    from app.models import AdminOverride, MetaLead, Payout, SessionLocal, engine
+
+    legacy = create_engine(str(engine.url))  # no PRAGMA listener: rows written before FK enforcement
+    with legacy.begin() as conn:
+        payout_id = conn.execute(text(
+            "INSERT INTO payouts (member_id, amount, status) VALUES (999999, 10, 'Pending')"
+        )).lastrowid
+        lead_id = conn.execute(text(
+            "INSERT INTO meta_leads (lead_id, member_id) VALUES ('dangling-lead-1', 999999)"
+        )).lastrowid
+        override_id = conn.execute(text(
+            "INSERT INTO admin_overrides (member_id, survey_id, reason) VALUES (999999, 999999, 'dangling reference')"
+        )).lastrowid
+    created = ((Payout, payout_id), (MetaLead, lead_id), (AdminOverride, override_id))
     try:
         for path in ("/api/admin/payouts", "/api/admin/meta-leads", "/api/admin/overrides"):
             r = client.get(path, headers=admin)

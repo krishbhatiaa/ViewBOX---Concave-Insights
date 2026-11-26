@@ -1,10 +1,19 @@
 import os
 from datetime import datetime
-from sqlalchemy import (create_engine, Column, Integer, String, DateTime, Date, Boolean, Text,
+from sqlalchemy import (create_engine, event, Column, Integer, String, DateTime, Date, Boolean, Text,
                         ForeignKey, Numeric, UniqueConstraint)
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 engine = create_engine(os.getenv("DATABASE_URL", "sqlite:///./viewbox.db"), connect_args={"check_same_thread": False})
+
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_conn, _):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
 Base = declarative_base()
 now = datetime.utcnow
