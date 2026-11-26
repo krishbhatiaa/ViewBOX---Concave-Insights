@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { tokens } from "../../api.js";
 import { Button } from "../../components/ui.jsx";
@@ -11,10 +12,11 @@ const linkCls = ({ isActive }) =>
 
 export default function MemberLayout() {
   const navigate = useNavigate();
-  if (!tokens.get(true)) {
-    navigate("/login", { replace: true });
-    return null;
-  }
+  const token = tokens.get(true);
+  useEffect(() => {
+    if (!token) navigate("/login", { replace: true });
+  }, [token, navigate]);
+  if (!token) return null;
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">

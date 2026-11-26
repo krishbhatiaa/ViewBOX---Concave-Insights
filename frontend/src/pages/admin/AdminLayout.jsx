@@ -24,6 +24,10 @@ const linkCls = ({ isActive }) =>
 export default function AdminLayout() {
   const navigate = useNavigate();
   const headerRef = useRef(null);
+  const token = tokens.get(false);
+  useEffect(() => {
+    if (!token) navigate("/admin", { replace: true });
+  }, [token, navigate]);
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
@@ -33,10 +37,7 @@ export default function AdminLayout() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  if (!tokens.get(false)) {
-    navigate("/admin", { replace: true });
-    return null;
-  }
+  if (!token) return null;
   return (
     <div className="min-h-dvh">
       <header ref={headerRef} className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">

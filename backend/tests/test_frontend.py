@@ -75,3 +75,13 @@ def test_money_renders_two_decimal_places():
     for page in ("pages/admin/PayoutsPage.jsx", "pages/admin/SurveysPage.jsx",
                  "pages/member/HomePage.jsx", "pages/member/ReferralsPage.jsx"):
         assert "money(" in _read(page), page
+
+
+def test_layout_redirects_run_in_effect_not_during_render():
+    cases = (("pages/member/MemberLayout.jsx", '"/login"'), ("pages/admin/AdminLayout.jsx", '"/admin"'))
+    for page, route in cases:
+        text = _read(page)
+        assert "useEffect(() => {" in text
+        assert f"if (!token) navigate({route}, {{ replace: true }});" in text
+        assert "if (!token) return null;" in text
+        assert "if (!tokens.get(" not in text, page
