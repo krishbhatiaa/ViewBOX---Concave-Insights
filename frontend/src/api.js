@@ -1,3 +1,5 @@
+import { notifySessionExpired } from "./components/Toast.jsx";
+
 export class ApiError extends Error {
   constructor(message, status) {
     super(message);
@@ -63,7 +65,14 @@ export async function api(path, { method = "GET", body, role, raw = false } = {}
     } catch {
       detail = null;
     }
-    if (res.status === 401 && role) tokens.set(role === "member", null);
+    if (res.status === 401 && role) {
+      tokens.set(role === "member", null);
+      sessionStorage.setItem("vb_session_expired", "1");
+      notifySessionExpired();
+      const target = role === "member" ? "/login" : "/admin";
+      if (window.location.pathname !== target) window.location.assign(target);
+      else sessionStorage.removeItem("vb_session_expired");
+    }
     throw new ApiError(parseDetail(detail) || "Something went wrong. Please try again.", res.status);
   }
 

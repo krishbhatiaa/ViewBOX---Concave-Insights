@@ -1,8 +1,14 @@
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 const ToastContext = createContext(() => {});
+const SESSION_EXPIRED_KEY = "vb_session_expired";
 
 let nextId = 0;
+let sessionExpiredHandler = null;
+
+export function notifySessionExpired() {
+  sessionExpiredHandler?.();
+}
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -19,6 +25,18 @@ export function ToastProvider({ children }) {
     },
     [dismiss]
   );
+
+  useEffect(() => {
+    const handler = () => toast("Session expired, please log in again", "error");
+    sessionExpiredHandler = handler;
+    if (sessionStorage.getItem(SESSION_EXPIRED_KEY)) {
+      sessionStorage.removeItem(SESSION_EXPIRED_KEY);
+      handler();
+    }
+    return () => {
+      if (sessionExpiredHandler === handler) sessionExpiredHandler = null;
+    };
+  }, [toast]);
 
   return (
     <ToastContext.Provider value={toast}>
