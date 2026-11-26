@@ -157,3 +157,12 @@ def test_source_dashboard_shows_completion_rate_quality_score():
     assert "bg-emerald-500" in stats and "bg-rose-500" in stats
     assert "converts {ratio}x better than" in stats
     assert "consider shifting spend." in stats
+
+
+def test_payouts_page_has_batch_approval_modal():
+    page = _read("pages/admin/PayoutsPage.jsx")
+    assert "Select all payouts" in page
+    assert "Approve selected" in page
+    assert '"/api/admin/payouts/batch-approve"' in page
+    assert "totalling ₹{money(selectedTotal)}?" in page
+    assert "Modal" in page

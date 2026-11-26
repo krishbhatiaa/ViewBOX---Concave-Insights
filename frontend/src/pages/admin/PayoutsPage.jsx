@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, money } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
+import Modal from "../../components/Modal.jsx";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
   Button,
@@ -21,6 +22,9 @@ export default function PayoutsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [selected, setSelected] = useState([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,6 +54,31 @@ export default function PayoutsPage() {
       setBusyId(null);
     }
   }
+
+  const selectable = rows ? rows.filter((p) => p.status !== "Paid") : [];
+  const selectedRows = rows ? rows.filter((p) => selected.includes(p.id)) : [];
+  const selectedTotal = selectedRows.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const toggle = (id) => setSelected((current) => current.includes(id)
+    ? current.filter((x) => x !== id) : [...current, id]);
+
+  const toggleAll = () => setSelected(selected.length === selectable.length ? [] : selectable.map((p) => p.id));
+
+  const approveSelected = async () => {
+    setBatchBusy(true);
+    try {
+      const result = await api("/api/admin/payouts/batch-approve",
+                               { method: "POST", body: { ids: selected }, role: "admin" });
+      toast(`Approved ${result.approved} payout(s), ${result.failed} failed`, result.failed ? "error" : "success");
+      setSelected([]);
+      setConfirmOpen(false);
+      load();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      setBatchBusy(false);
+    }
+  };
 
   const totals = rows
     ? rows.reduce(
@@ -86,13 +115,21 @@ export default function PayoutsPage() {
           </div>
 
           <Card className="!p-0">
-            <div className="px-4 pt-4 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 sm:px-5">
               <h2 className="text-base font-semibold">All payouts</h2>
+              <Button variant="secondary" disabled={!selected.length} onClick={() => setConfirmOpen(true)}>
+                Approve selected
+              </Button>
             </div>
             <div className="mt-3 px-4 pb-4 sm:px-5 sm:pb-5">
               <Table>
                 <thead>
                   <tr>
+                    <Th>
+                      <input type="checkbox" aria-label="Select all payouts" className="h-5 w-5"
+                             checked={!!selectable.length && selected.length === selectable.length}
+                             onChange={toggleAll} disabled={!selectable.length} />
+                    </Th>
                     <Th>ID</Th>
                     <Th>Member</Th>
                     <Th>Kind</Th>
@@ -104,6 +141,11 @@ export default function PayoutsPage() {
                 <tbody>
                   {rows.map((p) => (
                     <tr key={p.id}>
+                      <Td>
+                        <input type="checkbox" aria-label={`Select payout ${p.id}`} className="h-5 w-5"
+                               checked={selected.includes(p.id)} onChange={() => toggle(p.id)}
+                               disabled={p.status === "Paid"} />
+                      </Td>
                       <Td className="tabular-nums text-slate-500">{p.id}</Td>
                       <Td className="font-medium">{p.member}</Td>
                       <Td>{p.kind}</Td>
@@ -148,6 +190,16 @@ export default function PayoutsPage() {
           description="Payout rows are created automatically when a member completes a survey or a referral bonus is earned."
         />
       )}
+
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Approve selected payouts">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Approve {selectedRows.length} payout(s) totalling ₹{money(selectedTotal)}?
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button loading={batchBusy} onClick={approveSelected}>Confirm</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

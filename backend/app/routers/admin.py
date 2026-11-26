@@ -188,6 +188,37 @@ def payouts(_=Depends(admin_auth), db: Session = Depends(db_dep)):
     return out
 
 
+@router.post("/api/admin/payouts/batch-approve")
+def batch_approve_payouts(request: Request, b: dict = Body(...), t=Depends(admin_auth),
+                          db: Session = Depends(db_dep)):
+    ids = b.get("ids")
+    if not isinstance(ids, list):
+        raise HTTPException(422, "Please provide a list of payout ids.")
+    ip = request.client.host if request.client else None
+    actor_id, role = audit.identity(t)
+    results = []
+    for pid in ids:
+        if not isinstance(pid, int):
+            results.append({"id": pid, "ok": False, "error": "Invalid payout id."})
+            continue
+        with db.begin_nested():
+            p = db.get(Payout, pid)
+            if not p:
+                results.append({"id": pid, "ok": False, "error": "Payout not found."})
+                continue
+            if p.status == "Paid":
+                results.append({"id": pid, "ok": False, "error": "Paid payouts cannot be re-approved."})
+                continue
+            changed = p.status != "Approved"
+            p.status, p.approved_by, p.approved_at = "Approved", t["sub"], datetime.utcnow()
+            if changed:
+                audit.log(actor_id, role, "payout_status_changed", "payout", pid, {"status": "Approved"}, ip, db=db)
+            results.append({"id": pid, "ok": True, "status": p.status, "changed": changed})
+    db.commit()
+    return {"results": results, "approved": sum(r["ok"] for r in results),
+            "failed": sum(not r["ok"] for r in results)}
+
+
 @router.post("/api/admin/payouts/{pid}/status")
 def payout_status(request: Request, pid: int, b: Optional[PayoutStatusIn] = Body(None),
                   status: Optional[Literal["Approved", "Paid"]] = Query(None),
