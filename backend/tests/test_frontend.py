@@ -140,3 +140,11 @@ def test_meta_simulator_page_is_routed_and_linked():
     assert "Graph API" in page
     assert 'path="/admin/meta-simulator"' in _read("App.jsx")
     assert 'to: "/admin/meta-simulator"' in _read("pages/admin/AdminLayout.jsx")
+
+
+def test_referrals_page_has_qr_download():
+    page = _read("pages/member/ReferralsPage.jsx")
+    assert "Download QR" in page
+    assert '"/api/me/referral-qr"' in page
+    assert "downloadBlob(blob" in page
+    assert "raw: true" in page

@@ -216,10 +216,17 @@ def payout_status(request: Request, pid: int, b: Optional[PayoutStatusIn] = Body
 def source_stats(_=Depends(admin_auth), db: Session = Depends(db_dep)):
     out = []
     for s in db.query(Source):
-        st = [r.stage for r in db.query(Referral).join(Member, Member.id == Referral.referred_member_id)
-              .filter(Member.source_id == s.id)]
+        refs = db.query(Referral).join(Member, Member.id == Referral.referred_member_id) \
+                 .filter(Member.source_id == s.id).all()
+        st = [r.stage for r in refs]
+        channels: dict[str, int] = {}
+        for r in refs:
+            key = r.channel or "direct"
+            channels[key] = channels.get(key, 0) + 1
         out.append({"source": s.name, "type": s.type, "signups": len(st),
-                    "fit": sum(x in ("Fit", "Completed") for x in st), "completed": st.count("Completed")})
+                    "fit": sum(x in ("Fit", "Completed") for x in st), "completed": st.count("Completed"),
+                    "by_channel": [{"channel": k, "count": v} for k, v in
+                                   sorted(channels.items(), key=lambda kv: -kv[1])]})
     return sorted(out, key=lambda x: -x["signups"])
 
 

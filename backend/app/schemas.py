@@ -26,6 +26,7 @@ class SignupIn(LoginIn):
     first_src: Optional[str] = None
     how_heard_source_id: Optional[int] = None
     referrer_phone: Optional[str] = None
+    ch: Optional[str] = Field(default=None, max_length=30)
 
 
 class AdminLogin(BaseModel):

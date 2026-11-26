@@ -12,6 +12,7 @@ pytest==9.2.0
 openpyxl==3.1.5
 gspread==6.2.1
 google-auth==2.40.3
+qrcode==8.2
 
 # --- transitives (pinned so a fresh install matches what the test suite ran on) ---
 starlette==1.10.0
@@ -28,6 +29,7 @@ click==8.5.1
 annotated-doc==0.0.7
 opentelemetry-api==1.45.2
 et_xmlfile==2.0.0
+Pillow==10.2.0
 iniconfig==2.3.1
 packaging==26.3
 pluggy==1.7.0

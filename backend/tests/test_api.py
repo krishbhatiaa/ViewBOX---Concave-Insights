@@ -60,7 +60,8 @@ def test_referral_link_and_masked_view(client, admin):
     assert h.status_code == 200
     mh = member_token(client, "9810000005")
     link = client.get("/api/me", headers=mh).json()["referral_link"]
-    ref_token = link.split("ref=")[1]
+    ref_token = link.split("ref=")[1].split("&")[0]
+    assert link.endswith("&ch=direct")
     h2 = signup_member(client, "9810000006", name="Friend Person", ref=ref_token)
     assert h2.status_code == 200, h2.text
     refs = client.get("/api/me/referrals", headers=mh).json()

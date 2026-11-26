@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, money } from "../../api.js";
+import { api, downloadBlob, money } from "../../api.js";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
+  Button,
   Card,
   CopyButton,
   EmptyState,
@@ -20,6 +21,7 @@ export default function ReferralsPage() {
   const [link, setLink] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [qrLoading, setQrLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,6 +39,18 @@ export default function ReferralsPage() {
       setLoading(false);
     }
   }, []);
+
+  const downloadQr = async () => {
+    setQrLoading(true);
+    try {
+      const blob = await api("/api/me/referral-qr", { role: "member", raw: true });
+      downloadBlob(blob, "viewbox-referral-qr.png");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setQrLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -60,7 +74,10 @@ export default function ReferralsPage() {
             <h2 className="text-base font-semibold">Your personal link</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">Share it anywhere — the bonus lands when a friend completes a survey.</p>
           </div>
-          <CopyButton value={link} label="Copy link" />
+          <div className="flex flex-wrap gap-2">
+            <CopyButton value={link} label="Copy link" />
+            <Button variant="secondary" loading={qrLoading} onClick={downloadQr}>Download QR</Button>
+          </div>
         </div>
         <input
           readOnly

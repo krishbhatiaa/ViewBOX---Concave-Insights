@@ -1,5 +1,9 @@
 """Member portal: profile, live surveys with eligibility, own status, my referrals."""
-from fastapi import APIRouter, Depends, Request
+import io
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from .. import security as sec
@@ -10,14 +14,33 @@ from ..models import Completion, Payout, Referral, Survey
 router = APIRouter()
 
 
+def referral_link(request: Request, member_id: int, channel: str) -> str:
+    return f"{base_url(request)}/signup?ref={sec.sign_link('ref', str(member_id))}&ch={quote(channel)}"
+
+
 @router.get("/api/me")
-def get_me(request: Request, t=Depends(member_auth), db: Session = Depends(db_dep)):
+def get_me(request: Request, ch: str = Query("direct", max_length=30),
+           t=Depends(member_auth), db: Session = Depends(db_dep)):
     m = me(t, db)
     d = next_eligible_date(db, m)
     return {"id": m.id, "name": m.name, "phone": sec.mask(m.phone), "city": m.city,
             "interests": [i for i in (m.interests or "").split(",") if i],
             "next_eligible_date": d and d.isoformat(),
-            "referral_link": f"{base_url(request)}/signup?ref={sec.sign_link('ref', str(m.id))}"}
+            "referral_link": referral_link(request, m.id, ch)}
+
+
+@router.get("/api/me/referral-qr")
+def referral_qr(request: Request, ch: str = Query("direct", max_length=30),
+                t=Depends(member_auth), db: Session = Depends(db_dep)):
+    m = me(t, db)
+    import qrcode
+
+    image = qrcode.make(referral_link(request, m.id, ch))
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="image/png",
+                             headers={"Content-Disposition": 'attachment; filename="referral-qr.png"'})
 
 
 @router.get("/api/surveys")

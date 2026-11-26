@@ -70,7 +70,8 @@ def signup(b: SignupIn, request: Request, x_device_id: str = Header(None), db: S
                referrer_id=referrer and referrer.id, ip=client_ip(request), device_id=x_device_id)
     db.add(m)
     db.flush()
-    db.add(Referral(referrer_id=m.referrer_id, referred_member_id=m.id))
+    db.add(Referral(referrer_id=m.referrer_id, referred_member_id=m.id,
+                    channel=(b.ch or "direct") if referrer else None))
     fraud.on_signup(db, m, referrer, m.ip, m.device_id)
     db.commit()
     return {"token": sec.make_token(m.id, "member"), "notes": notes}

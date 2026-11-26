@@ -62,7 +62,7 @@ class Referral(Base):
     __tablename__ = "referrals"
     id = Column(Integer, primary_key=True); referrer_id = FK("members.id")
     referred_member_id = Column(Integer, ForeignKey("members.id", ondelete="CASCADE"), unique=True)
-    stage = Column(String, default="Lead"); failure_reason = Column(Text); updated_at = Column(DateTime, default=now)
+    stage = Column(String, default="Lead"); failure_reason = Column(Text); updated_at = Column(DateTime, default=now); channel = Column(String, nullable=True)
     referred = relationship("Member", foreign_keys=[referred_member_id], back_populates="referrals_as_referred")
 
 class Completion(Base):
