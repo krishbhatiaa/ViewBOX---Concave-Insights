@@ -114,3 +114,18 @@ def test_theme_toggle_is_persisted_and_mounted_in_both_layouts():
     css = _read("index.css")
     assert '@custom-variant dark' in css
     assert '[data-theme="dark"]' in css
+
+
+def test_sheets_status_card_has_sync_button_and_toasts():
+    api = _read("api.js")
+    assert '"/api/admin/sheets/status"' in api
+    assert '"/api/admin/sheets/push"' in api
+
+    stats = _read("pages/admin/StatsPage.jsx")
+    assert "sheetsStatus()" in stats and "sheetsPush(filters)" in stats
+    assert "last synced" in stats and "rows" in stats
+    assert "✅" in stats and "❌" in stats
+    assert "Sync now" in stats
+    assert "toast(`Synced" in stats and "toast(`Sync failed" in stats
+    assert 'sessionStorage.getItem("vb_grid_filters")' in stats
+    assert 'sessionStorage.setItem("vb_grid_filters"' in _read("pages/admin/GridPage.jsx")

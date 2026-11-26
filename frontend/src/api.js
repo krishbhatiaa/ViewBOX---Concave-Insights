@@ -81,6 +81,14 @@ export function money(value) {
   return Number(value || 0).toFixed(2);
 }
 
+export function sheetsStatus() {
+  return api("/api/admin/sheets/status", { role: "admin" });
+}
+
+export function sheetsPush(filters = {}) {
+  return api("/api/admin/sheets/push", { method: "POST", body: filters, role: "admin" });
+}
+
 export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

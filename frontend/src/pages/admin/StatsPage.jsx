@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../api.js";
+import { api, sheetsPush, sheetsStatus } from "../../api.js";
+import { useToast } from "../../components/Toast.jsx";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
   BAR_TONES,
+  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -26,10 +28,23 @@ function FunnelBar({ value, max, color }) {
   );
 }
 
+function relativeTime(iso) {
+  if (!iso) return "never";
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return `${Math.round(hours / 24)} d ago`;
+}
+
 export default function StatsPage() {
+  const toast = useToast();
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [sheet, setSheet] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,9 +58,37 @@ export default function StatsPage() {
     }
   }, []);
 
+  const loadSheet = useCallback(async () => {
+    try {
+      setSheet(await sheetsStatus());
+    } catch (err) {
+      setSheet({ status: "error", error: err.message, row_count: 0 });
+    }
+  }, []);
+
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      let filters = {};
+      try {
+        filters = JSON.parse(sessionStorage.getItem("vb_grid_filters") || "{}");
+      } catch {
+        filters = {};
+      }
+      const result = await sheetsPush(filters);
+      toast(`Synced ${result.rows} rows to ${result.sheet}`, "success");
+      await loadSheet();
+    } catch (err) {
+      toast(`Sync failed: ${err.message}`, "error");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadSheet();
+  }, [load, loadSheet]);
 
   const max = rows ? Math.max(...rows.map((r) => r.signups), 1) : 1;
   const totals = rows
@@ -61,6 +104,20 @@ export default function StatsPage() {
       <PageHeader title="Source dashboard" description="Sign-ups, Fit and Completed per channel — sorted by volume." />
 
       {error && rows?.length ? <RefreshBanner onRetry={load} /> : null}
+
+      <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Google Sheets</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Google Sheets: last synced {relativeTime(sheet?.last_push || sheet?.last_pull)} · {sheet?.row_count || 0} rows ·{" "}
+            {sheet?.status === "error" || sheet?.error ? "❌" : "✅"}
+          </p>
+          {sheet?.error ? <p className="mt-1 text-sm text-rose-600 dark:text-rose-400">{sheet.error}</p> : null}
+        </div>
+        <Button variant="secondary" loading={syncing} onClick={syncNow}>
+          Sync now
+        </Button>
+      </Card>
 
       {loading && !rows ? (
         <LoadingCard label="Loading source stats…" />

@@ -62,6 +62,11 @@ export default function GridPage() {
     return p.toString();
   }, [dq, sourceId, dCity, status, filterSurveyId]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(qs());
+    sessionStorage.setItem("vb_grid_filters", JSON.stringify(Object.fromEntries(params.entries())));
+  }, [qs]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
