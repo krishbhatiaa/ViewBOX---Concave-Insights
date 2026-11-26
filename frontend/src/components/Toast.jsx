@@ -49,18 +49,21 @@ export function ToastProvider({ children }) {
           <div
             key={t.id}
             role="status"
-            className={`pointer-events-auto flex max-w-md items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg ${
-              t.type === "error"
-                ? "border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-100"
-                : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100"
+            className={`pointer-events-auto flex max-w-md items-start gap-3 rounded-[2px] border border-l-4 bg-paper px-4 py-3 font-mono text-xs text-ink ${
+              t.type === "error" ? "border-acc" : "border-deep"
             }`}
           >
-            <span className="flex-1">{t.message}</span>
+            <span className="flex-1">
+              <span className="mr-2 font-semibold uppercase tracking-wide text-ink-3">
+                {t.type === "error" ? "Alert" : "OK"}
+              </span>
+              {t.message}
+            </span>
             <button
               type="button"
               onClick={() => dismiss(t.id)}
               aria-label="Dismiss notification"
-              className="-m-1 flex h-11 w-11 items-center justify-center rounded-lg opacity-70 hover:opacity-100"
+              className="-m-1 flex h-11 w-11 items-center justify-center rounded-[2px] text-ink-3 hover:text-ink"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6 6 18M6 6l12 12" />

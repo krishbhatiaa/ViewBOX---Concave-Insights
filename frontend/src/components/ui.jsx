@@ -1,24 +1,25 @@
 import { forwardRef, useState } from "react";
 
 export const TONES = {
-  emerald: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  rose: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-  amber: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300",
-  sky: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
-  slate: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  indigo: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300",
+  emerald: "border-deep bg-deep/10 text-deep",
+  rose: "border-acc bg-acc/10 text-acc",
+  amber: "border-line-2 bg-paper-3 text-ink-2",
+  sky: "border-line-2 bg-paper-3 text-ink-2",
+  slate: "border-line bg-paper-3 text-ink-2",
+  indigo: "border-deep bg-transparent text-deep",
+  match: "border-acc-2/40 bg-acc-2/25 text-ink",
 };
 
 export const BAR_TONES = {
-  sky: "bg-sky-500",
-  amber: "bg-amber-500",
-  emerald: "bg-emerald-500",
+  sky: "bg-ink-3",
+  amber: "bg-acc-2",
+  emerald: "bg-deep",
 };
 
 export function Card({ className = "", children, ...rest }) {
   return (
     <section
-      className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5 ${className}`}
+      className={`rounded-[2px] border border-line bg-paper-2 p-4 sm:p-5 ${className}`}
       {...rest}
     >
       {children}
@@ -28,13 +29,15 @@ export function Card({ className = "", children, ...rest }) {
 
 export function Button({ variant = "primary", className = "", type = "button", loading = false, disabled, children, ...rest }) {
   const base =
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60";
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-[2px] border px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-60";
   const styles = {
-    primary: "bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800",
+    primary:
+      "border-[#c43518] bg-[#c43518] text-paper hover:bg-[#a52d12] active:bg-[#8e2510] dark:border-acc dark:bg-acc dark:text-ink dark:hover:bg-acc-2",
     secondary:
-      "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
-    ghost: "text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950",
-    danger: "bg-rose-600 text-white hover:bg-rose-700",
+      "border-line-2 bg-paper text-ink hover:bg-paper-2 active:bg-paper-3",
+    ghost: "border-transparent bg-transparent text-acc hover:bg-paper-2",
+    danger:
+      "border-[#c43518] bg-[#c43518] text-paper hover:bg-[#a52d12] active:bg-[#8e2510] dark:border-acc dark:bg-acc dark:text-ink dark:hover:bg-acc-2",
   };
   return (
     <button
@@ -44,7 +47,7 @@ export function Button({ variant = "primary", className = "", type = "button", l
       {...rest}
     >
       {loading && (
-        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
           <path d="M4 12a8 8 0 0 1 8-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
         </svg>
@@ -55,19 +58,19 @@ export function Button({ variant = "primary", className = "", type = "button", l
 }
 
 const inputCls =
-  "min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:ring-indigo-900";
+  "min-h-11 w-full rounded-[2px] border border-line-2 bg-paper px-3 py-2 font-mono text-sm text-ink placeholder:text-ink-3 focus:border-acc focus:outline-none focus:ring-1 focus:ring-acc";
 
 export function Field({ label, error, hint, required, children, id }) {
   return (
-    <label htmlFor={id} className="block text-sm font-medium">
-      <span className="mb-1 block text-slate-700 dark:text-slate-300">
+    <label htmlFor={id} className="block text-sm font-medium text-ink-2">
+      <span className="mb-1 block font-mono text-xs uppercase tracking-wide text-ink-3">
         {label}
-        {required && <span className="text-rose-600 dark:text-rose-400"> *</span>}
+        {required && <span className="text-acc"> *</span>}
       </span>
       {children}
-      {hint && !error && <span className="mt-1 block text-xs font-normal text-slate-500">{hint}</span>}
+      {hint && !error && <span className="mt-1 block font-mono text-xs font-normal text-ink-3">{hint}</span>}
       {error && (
-        <span role="alert" className="mt-1 block text-xs font-normal text-rose-600 dark:text-rose-400">
+        <span role="alert" className="mt-1 block font-mono text-xs font-normal text-acc">
           {error}
         </span>
       )}
@@ -76,12 +79,12 @@ export function Field({ label, error, hint, required, children, id }) {
 }
 
 export const Input = forwardRef(function Input({ error, className = "", ...rest }, ref) {
-  return <input ref={ref} aria-invalid={!!error || undefined} className={`${inputCls} ${error ? "border-rose-400" : ""} ${className}`} {...rest} />;
+  return <input ref={ref} aria-invalid={!!error || undefined} className={`${inputCls} ${error ? "border-acc" : ""} ${className}`} {...rest} />;
 });
 
 export function Select({ error, className = "", children, ...rest }) {
   return (
-    <select aria-invalid={!!error || undefined} className={`${inputCls} ${error ? "border-rose-400" : ""} ${className}`} {...rest}>
+    <select aria-invalid={!!error || undefined} className={`${inputCls} ${error ? "border-acc" : ""} ${className}`} {...rest}>
       {children}
     </select>
   );
@@ -91,7 +94,7 @@ export function Textarea({ error, className = "", ...rest }) {
   return (
     <textarea
       aria-invalid={!!error || undefined}
-      className={`${inputCls} min-h-24 ${error ? "border-rose-400" : ""} ${className}`}
+      className={`${inputCls} min-h-24 ${error ? "border-acc" : ""} ${className}`}
       {...rest}
     />
   );
@@ -100,7 +103,7 @@ export function Textarea({ error, className = "", ...rest }) {
 export function Tag({ tone = "slate", className = "", children }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONES[tone] || TONES.slate} ${className}`}
+      className={`inline-flex items-center rounded-[2px] border px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide ${TONES[tone] || TONES.slate} ${className}`}
     >
       {children}
     </span>
@@ -113,18 +116,16 @@ export function StageTag({ stage }) {
       ? "emerald"
       : stage === "Rejected" || stage === "Failed"
         ? "rose"
-        : stage === "Waitlisted" || stage === "Fit" || stage === "Pending"
+        : stage === "Waitlisted" || stage === "Fit" || stage === "Pending" || stage === "Lead"
           ? "amber"
-          : stage === "Lead"
-            ? "sky"
-            : stage === "Approved by ops"
-              ? "indigo"
-              : "slate";
+          : stage === "Approved by ops"
+            ? "indigo"
+            : "slate";
   return <Tag tone={tone}>{stage}</Tag>;
 }
 
 export function Skeleton({ className = "" }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded bg-slate-200 dark:bg-slate-800 ${className}`} />;
+  return <div aria-hidden="true" className={`rounded-[2px] bg-paper-3 ${className}`} />;
 }
 
 export function LoadingCard({ label = "Loading…" }) {
@@ -143,8 +144,8 @@ export function LoadingCard({ label = "Loading…" }) {
 export function EmptyState({ title, description, action }) {
   return (
     <Card className="text-center">
-      <p className="font-medium text-slate-600 dark:text-slate-300">{title}</p>
-      {description && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>}
+      <p className="font-display text-xl font-normal text-ink">{title}</p>
+      {description && <p className="mt-1 font-mono text-xs text-ink-3">{description}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </Card>
   );
@@ -152,8 +153,9 @@ export function EmptyState({ title, description, action }) {
 
 export function ErrorState({ message, onRetry }) {
   return (
-    <Card role="alert" className="border-rose-200 dark:border-rose-900">
-      <p className="text-sm font-medium text-rose-700 dark:text-rose-300">{message}</p>
+    <Card role="alert" className="border-acc bg-acc/5">
+      <p className="font-mono text-xs font-semibold uppercase tracking-wide text-acc">Error</p>
+      <p className="mt-1 text-sm text-ink">{message}</p>
       {onRetry && (
         <div className="mt-3">
           <Button variant="secondary" onClick={onRetry}>
@@ -168,7 +170,8 @@ export function ErrorState({ message, onRetry }) {
 export function InlineError({ message }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300">
+    <p role="alert" className="rounded-[2px] border border-l-4 border-acc bg-acc/5 px-3 py-2 font-mono text-xs text-ink">
+      <span className="font-semibold uppercase tracking-wide text-acc">Error · </span>
       {message}
     </p>
   );
@@ -208,22 +211,22 @@ export function Table({ children, className = "" }) {
 
 export function Th({ children }) {
   return (
-    <th className="sticky top-0 border-b border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+    <th className="sticky top-0 border-b border-line-2 bg-paper-2 px-3 py-2.5 font-mono text-xs font-semibold uppercase tracking-wide text-ink-3">
       {children}
     </th>
   );
 }
 
 export function Td({ children, className = "" }) {
-  return <td className={`border-b border-slate-100 px-3 py-2.5 dark:border-slate-800 ${className}`}>{children}</td>;
+  return <td className={`border-b border-line px-3 py-2.5 ${className}`}>{children}</td>;
 }
 
 export function PageHeader({ title, description, actions }) {
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h1>
-        {description && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>}
+        <h1 className="font-display text-3xl font-normal tracking-tight sm:text-4xl">{title}</h1>
+        {description && <p className="mt-1 font-mono text-xs uppercase tracking-wide text-ink-3">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
@@ -232,17 +235,17 @@ export function PageHeader({ title, description, actions }) {
 
 export function StatCard({ label, value, tone = "slate" }) {
   const colors = {
-    emerald: "border-emerald-200 dark:border-emerald-900",
-    amber: "border-amber-200 dark:border-amber-900",
-    rose: "border-rose-200 dark:border-rose-900",
-    slate: "border-slate-200 dark:border-slate-800",
-    indigo: "border-indigo-200 dark:border-indigo-900",
-    sky: "border-sky-200 dark:border-sky-900",
+    emerald: "border-l-deep",
+    amber: "border-l-ink-3",
+    rose: "border-l-acc",
+    slate: "border-l-line-2",
+    indigo: "border-l-deep",
+    sky: "border-l-ink-3",
   };
   return (
-    <Card className={`!p-4 ${colors[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
+    <Card className={`!p-4 border-l-4 ${colors[tone] || colors.slate}`}>
+      <p className="font-mono text-xs uppercase tracking-wide text-ink-3">{label}</p>
+      <p className="mt-1 font-display text-3xl font-normal tabular-nums">{value}</p>
     </Card>
   );
 }

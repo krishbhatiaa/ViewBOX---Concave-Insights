@@ -6,18 +6,19 @@ export default function RefreshBanner({ onRetry }) {
   return (
     <div
       role="alert"
-      className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+      className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[2px] border border-l-4 border-line-2 border-l-acc bg-paper-3 px-4 py-3 text-sm text-ink-2"
     >
-      <span>Couldn't refresh — showing cached data.</span>
+      <span className="font-mono text-xs uppercase tracking-wide text-acc">Refresh warning</span>
+      <span className="flex-1">Couldn't refresh — showing cached data.</span>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={onRetry} className="min-h-11 font-semibold underline">
+        <button type="button" onClick={onRetry} className="min-h-11 font-mono text-xs font-semibold uppercase tracking-wide underline">
           Retry
         </button>
         <button
           type="button"
           aria-label="Dismiss refresh warning"
           onClick={() => setDismissed(true)}
-          className="flex h-11 w-11 items-center justify-center rounded-lg text-lg leading-none"
+          className="flex h-11 w-11 items-center justify-center rounded-[2px] text-xl leading-none text-ink-3 hover:text-ink"
         >
           ×
         </button>
