@@ -15,6 +15,15 @@ from ..schemas import MeOut, ReferralOut, StatusOut, SurveyOut
 router = APIRouter()
 
 
+def interest_tags(raw: str | None) -> list[str]:
+    result: list[str] = []
+    for part in (raw or "").split(","):
+        tag = part.strip().lower()
+        if tag and tag not in result:
+            result.append(tag)
+    return result
+
+
 def referral_link(request: Request, member_id: int, channel: str) -> str:
     return f"{base_url(request)}/signup?ref={sec.sign_link('ref', str(member_id))}&ch={quote(channel)}"
 
@@ -25,7 +34,7 @@ def get_me(request: Request, ch: str = Query("direct", max_length=30),
     m = me(t, db)
     d = next_eligible_date(db, m)
     return {"id": m.id, "name": m.name, "phone": m.phone, "city": m.city,
-            "interests": [i for i in (m.interests or "").split(",") if i],
+            "interests": interest_tags(m.interests),
             "next_eligible_date": d and d.isoformat(),
             "referral_link": referral_link(request, m.id, ch)}
 
@@ -48,15 +57,17 @@ def referral_qr(request: Request, ch: str = Query("direct", max_length=30),
 def surveys(t=Depends(member_auth), db: Session = Depends(db_dep)):
     """Live surveys for this member; every computed result is saved to eligibility_results."""
     m = me(t, db)
-    ints = [i for i in (m.interests or "").split(",") if i]
+    member_interests = set(interest_tags(m.interests))
     out = []
     for s in db.query(Survey).filter_by(status="live"):
         res, why = evaluate(db, m, s)
         record_result(db, m.id, s.id, res, why)
-        text = (s.title + " " + s.description).lower()
+        survey_interests = interest_tags(s.interests)
+        matched = [tag for tag in survey_interests if tag in member_interests]
         out.append({"id": s.id, "title": s.title, "description": s.description,
                     "deadline": s.deadline and s.deadline.isoformat(), "amount": s.amount,
-                    "matches_interests": any(i.lower() in text for i in ints), "result": res, "reason": why})
+                    "matches_interests": bool(matched), "matched_interests": matched,
+                    "result": res, "reason": why})
     db.commit()
     return sorted(out, key=lambda x: not x["matches_interests"])
 

@@ -32,11 +32,11 @@ def seed():
     mem(14, "Device Twin B", date(1995, 7, 5), "Female", "Mumbai", "5-10L", "food", "Website",
         device_id="demo-shared-device")
     now = datetime.utcnow()
-    z = Survey(title="Zomato Dining Habits", description="food dining delivery", deadline=now + timedelta(days=10), quota=50, amount=Decimal("300.00"))
+    z = Survey(title="Zomato Dining Habits", description="food dining delivery", deadline=now + timedelta(days=10), quota=50, amount=Decimal("300.00"), interests="food,fashion")
     z.rules = [SurveyRule(rule_type="age", operator="between", value="18-35", strict_or_flexible="strict"), SurveyRule(rule_type="city", operator="in", value="Mumbai,Pune,Delhi", strict_or_flexible="flexible")]
-    t = Survey(title="Titan Watch Preferences", description="watches fashion lifestyle", deadline=now + timedelta(days=12), quota=40, amount=Decimal("400.00"))
+    t = Survey(title="Titan Watch Preferences", description="watches fashion lifestyle", deadline=now + timedelta(days=12), quota=40, amount=Decimal("400.00"), interests="tech")
     t.rules = [SurveyRule(rule_type="age", operator="between", value="25-45", strict_or_flexible="strict"), SurveyRule(rule_type="income", operator="in", value="5-10L,10L+", strict_or_flexible="flexible")]
-    i = Survey(title="ICICI Life Insurance Needs", description="finance insurance planning", deadline=now + timedelta(days=14), quota=30, amount=Decimal("500.00"))
+    i = Survey(title="ICICI Life Insurance Needs", description="finance insurance planning", deadline=now + timedelta(days=14), quota=30, amount=Decimal("500.00"), interests="insurance")
     i.rules = [SurveyRule(rule_type="age", operator="between", value="30-60", strict_or_flexible="strict")]
     db.add_all([z, t, i]); db.flush()
     db.add(Completion(member_id=k.id, survey_id=z.id, completed_at=now - timedelta(days=20), quality_check_passed=True))

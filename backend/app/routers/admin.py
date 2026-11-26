@@ -3,7 +3,7 @@ payout ledger, source dashboard, fraud queue and manual eligibility overrides.""
 import json
 import logging
 from datetime import datetime
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -23,6 +23,10 @@ from ..services.rule_suggest import suggest_rules
 
 log = logging.getLogger("viewbox.admin")
 router = APIRouter()
+
+
+def survey_interests(survey: Survey) -> List[str]:
+    return [tag for tag in (survey.interests or "").split(",") if tag]
 
 
 @router.post("/api/admin/login")
@@ -80,7 +84,7 @@ def add_source(b: SourceIn, request: Request, _=Depends(admin_auth), db: Session
 @router.get("/api/admin/surveys")
 def admin_surveys(_=Depends(admin_auth), db: Session = Depends(db_dep)):
     return [{"id": x.id, "title": x.title, "status": x.status, "deadline": x.deadline and x.deadline.date().isoformat(),
-             "quota": x.quota, "amount": x.amount,
+             "quota": x.quota, "amount": x.amount, "interests": survey_interests(x),
              "completions": db.query(Completion).filter_by(survey_id=x.id).count(),
              "rules": [{"rule_type": r.rule_type, "value": r.value, "strict_or_flexible": r.strict_or_flexible}
                        for r in x.rules]} for x in db.query(Survey).order_by(Survey.id.desc())]
@@ -88,7 +92,9 @@ def admin_surveys(_=Depends(admin_auth), db: Session = Depends(db_dep)):
 
 @router.post("/api/admin/surveys", status_code=201)
 def add_survey(b: SurveyIn, _=Depends(admin_auth), db: Session = Depends(db_dep)):
-    s = Survey(**b.model_dump(exclude={"rules"}),
+    data = b.model_dump(exclude={"rules"})
+    data["interests"] = ",".join(data["interests"])
+    s = Survey(**data,
                rules=[SurveyRule(**r.model_dump(), operator="between" if r.rule_type == "age" else "in")
                       for r in b.rules])
     db.add(s)
@@ -102,10 +108,13 @@ def patch_survey(sid: int, b: SurveyPatchIn, _=Depends(admin_auth), db: Session 
     if not s:
         raise HTTPException(404, "Survey not found.")
     for field, value in b.model_dump(exclude_unset=True).items():
+        if field == "interests":
+            value = ",".join(value)
         setattr(s, field, value)
     db.commit()
     return {"id": s.id, "title": s.title, "status": s.status,
             "deadline": s.deadline and s.deadline.date().isoformat(), "quota": s.quota, "amount": s.amount,
+            "interests": survey_interests(s),
             "completions": db.query(Completion).filter_by(survey_id=s.id).count(),
             "rules": [{"rule_type": r.rule_type, "value": r.value, "strict_or_flexible": r.strict_or_flexible}
                       for r in s.rules]}

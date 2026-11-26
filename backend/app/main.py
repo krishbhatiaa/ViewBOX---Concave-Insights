@@ -46,7 +46,8 @@ def _ensure_columns():
     want = {"members": {"ip": "VARCHAR", "device_id": "VARCHAR"},
             "fraud_flags": {"reviewed_by": "VARCHAR", "reviewed_at": "DATETIME"},
             "sheet_sync_log": {"row_count": "INTEGER"},
-            "referrals": {"channel": "VARCHAR"}}
+            "referrals": {"channel": "VARCHAR"},
+            "surveys": {"interests": "TEXT"}}
     insp = inspect(engine)
     with engine.begin() as conn:
         for name in ("audit_events", "sheet_sync_log", "touch_events"):

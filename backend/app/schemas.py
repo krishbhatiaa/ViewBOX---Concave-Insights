@@ -6,6 +6,19 @@ from typing import Any, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 
+def normalize_interests(values: List[str]) -> List[str]:
+    result: List[str] = []
+    for value in values:
+        tag = str(value).strip().lower()
+        if tag and tag not in result:
+            result.append(tag)
+    if len(result) > 10:
+        raise ValueError("Use at most 10 interest tags.")
+    if any(len(tag) > 40 for tag in result):
+        raise ValueError("Each interest tag must be 40 characters or fewer.")
+    return result
+
+
 class PhoneIn(BaseModel):
     phone: str = Field(pattern=r"^[6-9]\d{9}$")
 
@@ -69,7 +82,13 @@ class SurveyIn(BaseModel):
     deadline: Optional[datetime] = None
     quota: Optional[int] = None
     amount: float = 0
+    interests: List[str] = []
     rules: List[RuleIn] = []
+
+    @field_validator("interests")
+    @classmethod
+    def _interests(cls, v):
+        return normalize_interests(v)
 
 
 class SurveyPatchIn(BaseModel):
@@ -79,6 +98,7 @@ class SurveyPatchIn(BaseModel):
     deadline: Optional[datetime] = None
     quota: Optional[int] = Field(default=None, gt=0)
     amount: Optional[float] = Field(default=None, ge=0)
+    interests: Optional[List[str]] = None
 
     @field_validator("deadline")
     @classmethod
@@ -86,6 +106,11 @@ class SurveyPatchIn(BaseModel):
         if v is not None and v <= datetime.utcnow():
             raise ValueError("deadline must be in the future")
         return v
+
+    @field_validator("interests")
+    @classmethod
+    def _interests(cls, v):
+        return None if v is None else normalize_interests(v)
 
 
 class GridFilterIn(BaseModel):
@@ -152,6 +177,7 @@ class SurveyOut(BaseModel):
     deadline: Optional[datetime] = None
     amount: float
     matches_interests: bool
+    matched_interests: List[str] = []
     result: str
     reason: Optional[str] = None
 

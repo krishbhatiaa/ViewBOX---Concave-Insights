@@ -45,6 +45,7 @@ class Survey(Base):
     id = Column(Integer, primary_key=True); title = Column(String, nullable=False); description = Column(Text, default="")
     status = Column(String, default="live"); deadline = Column(DateTime); quota = Column(Integer)
     amount = Column(Numeric(10, 2), default=0); created_at = Column(DateTime, default=now)
+    interests = Column(Text, nullable=True)
     rules = relationship("SurveyRule", cascade="all, delete-orphan")
 
 class SurveyRule(Base):
