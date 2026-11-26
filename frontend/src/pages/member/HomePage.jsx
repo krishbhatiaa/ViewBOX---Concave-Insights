@@ -91,7 +91,9 @@ function SurveyCard({ survey }) {
       </div>
       {survey.matches_interests && (
         <span className="mt-1 inline-block">
-          <Tag tone="indigo">Matches your interests</Tag>
+          <Tag tone="indigo">
+            Matches your interests{survey.matched_interests?.length ? `: ${survey.matched_interests.join(", ")}` : ""}
+          </Tag>
         </span>
       )}
       <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">

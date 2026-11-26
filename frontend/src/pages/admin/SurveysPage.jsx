@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, money } from "../../api.js";
+import Modal from "../../components/Modal.jsx";
 import { useToast } from "../../components/Toast.jsx";
 import RefreshBanner from "../RefreshBanner.jsx";
 import {
@@ -27,6 +28,21 @@ const RULE_TYPES = [
 ];
 
 let ruleKey = 0;
+
+function parseInterests(value) {
+  const seen = new Set();
+  return value.split(",").map((tag) => tag.trim().toLowerCase()).filter((tag) => {
+    if (!tag || seen.has(tag)) return false;
+    seen.add(tag);
+    return true;
+  });
+}
+
+function interestError(tags) {
+  if (tags.length > 10) return "Use at most 10 interest tags.";
+  if (tags.some((tag) => tag.length > 40)) return "Each interest tag must be 40 characters or fewer.";
+  return "";
+}
 
 function RuleRow({ rule, onChange, onRemove }) {
   const meta = RULE_TYPES.find((t) => t.value === rule.rule_type) || RULE_TYPES[0];
@@ -66,7 +82,12 @@ export default function SurveysPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const [form, setForm] = useState({ title: "", description: "", deadline: "", quota: "", amount: "0" });
+  const [form, setForm] = useState({ title: "", description: "", deadline: "", quota: "", amount: "0", interests: "" });
+  const [editing, setEditing] = useState(null);
+  const [editForm, setEditForm] = useState({ status: "live", deadline: "", quota: "", amount: "0", interests: "" });
+  const [editError, setEditError] = useState("");
+  const [editFieldErrors, setEditFieldErrors] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
   const [rules, setRules] = useState([{ key: ++ruleKey, rule_type: "age", value: "", strict_or_flexible: "strict" }]);
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
@@ -91,6 +112,55 @@ export default function SurveysPage() {
   }, [load]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setEdit = (k) => (e) => setEditForm((f) => ({ ...f, [k]: e.target.value }));
+
+  function openEdit(survey) {
+    setEditError("");
+    setEditFieldErrors({});
+    setEditing(survey.id);
+    setEditForm({
+      status: survey.status,
+      deadline: survey.deadline || "",
+      quota: survey.quota ?? "",
+      amount: survey.amount ?? 0,
+      interests: (survey.interests || []).join(", "),
+    });
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault();
+    setEditError("");
+    const tags = parseInterests(editForm.interests);
+    const errs = {};
+    const tagsError = interestError(tags);
+    if (tagsError) errs.interests = tagsError;
+    if (editForm.quota && Number(editForm.quota) < 1) errs.quota = "Quota must be at least 1, or left blank.";
+    if (Number(editForm.amount) < 0) errs.amount = "Amount cannot be negative.";
+    setEditFieldErrors(errs);
+    if (Object.keys(errs).length) return;
+
+    setSavingEdit(true);
+    try {
+      await api(`/api/admin/surveys/${editing}`, {
+        method: "PATCH",
+        body: {
+          status: editForm.status,
+          deadline: editForm.deadline ? `${editForm.deadline}T23:59:59` : null,
+          quota: editForm.quota ? Number(editForm.quota) : null,
+          amount: Number(editForm.amount) || 0,
+          interests: tags,
+        },
+        role: "admin",
+      });
+      toast("Survey updated");
+      setEditing(null);
+      load();
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   async function suggest() {
     setFormError("");
@@ -127,6 +197,9 @@ export default function SurveysPage() {
     if (form.title.trim().length < 3) errs.title = "Title needs at least 3 characters.";
     if (form.quota && Number(form.quota) < 1) errs.quota = "Quota must be at least 1, or left blank.";
     if (Number(form.amount) < 0) errs.amount = "Amount cannot be negative.";
+    const interests = parseInterests(form.interests);
+    const interestsProblem = interestError(interests);
+    if (interestsProblem) errs.interests = interestsProblem;
     const filled = rules.filter((r) => r.value.trim());
     const emptyRule = rules.some((r) => !r.value.trim() && rules.length > 1);
     if (emptyRule) errs.rules = "Remove or fill in every rule row — empty rows are ignored but confusing.";
@@ -139,13 +212,14 @@ export default function SurveysPage() {
       deadline: form.deadline ? `${form.deadline}T23:59:59` : null,
       quota: form.quota ? Number(form.quota) : null,
       amount: Number(form.amount) || 0,
+      interests,
       rules: filled.map(({ rule_type, value, strict_or_flexible }) => ({ rule_type, value: value.trim(), strict_or_flexible })),
     };
     setSaving(true);
     try {
       await api("/api/admin/surveys", { method: "POST", body, role: "admin" });
       toast(`Survey "${body.title}" created`);
-      setForm({ title: "", description: "", deadline: "", quota: "", amount: "0" });
+      setForm({ title: "", description: "", deadline: "", quota: "", amount: "0", interests: "" });
       setRules([{ key: ++ruleKey, rule_type: "age", value: "", strict_or_flexible: "strict" }]);
       setSuggestNote("");
       load();
@@ -167,8 +241,22 @@ export default function SurveysPage() {
           <Field label="Title" error={fieldErrors.title} required id="s-title">
             <Input id="s-title" value={form.title} error={fieldErrors.title} onChange={set("title")} placeholder="e.g. Zomato Dining Habits" />
           </Field>
-          <Field label="Topics / description" id="s-desc" hint="Used to highlight surveys that match a member's interests.">
+          <Field label="Topics / description" id="s-desc" hint="A short summary shown to members.">
             <Input id="s-desc" value={form.description} onChange={set("description")} placeholder="food dining delivery" />
+          </Field>
+          <Field
+            label="Interests"
+            id="s-interests"
+            error={fieldErrors.interests}
+            hint="Comma separated, e.g. food, tech. Matching surveys are highlighted for members (max 10 tags)."
+          >
+            <Input
+              id="s-interests"
+              value={form.interests}
+              error={fieldErrors.interests}
+              onChange={set("interests")}
+              placeholder="food, tech"
+            />
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Deadline" id="s-deadline">
@@ -235,7 +323,9 @@ export default function SurveysPage() {
                   <Th>Quota</Th>
                   <Th>Done</Th>
                   <Th>Pay</Th>
+                  <Th>Interests</Th>
                   <Th>Rules</Th>
+                  <Th>Actions</Th>
                 </tr>
               </thead>
               <tbody>
@@ -252,6 +342,17 @@ export default function SurveysPage() {
                       {s.quota ? ` / ${s.quota}` : ""}
                     </Td>
                     <Td className="font-medium">₹{money(s.amount)}</Td>
+                    <Td className="max-w-48 whitespace-normal">
+                      <div className="flex flex-wrap gap-1">
+                        {s.interests?.length ? (
+                          s.interests.map((tag) => (
+                            <Tag key={tag} tone="indigo">{tag}</Tag>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-500">Any interest</span>
+                        )}
+                      </div>
+                    </Td>
                     <Td className="max-w-64 whitespace-normal">
                       <div className="flex flex-wrap gap-1">
                         {s.rules.length ? (
@@ -265,6 +366,9 @@ export default function SurveysPage() {
                         )}
                       </div>
                     </Td>
+                    <Td>
+                      <Button variant="secondary" onClick={() => openEdit(s)}>Edit</Button>
+                    </Td>
                   </tr>
                 ))}
               </tbody>
@@ -274,6 +378,48 @@ export default function SurveysPage() {
           )}
         </div>
       </Card>
+
+      <Modal open={editing !== null} onClose={() => setEditing(null)} title="Edit survey">
+        {editError && <InlineError message={editError} />}
+        <form onSubmit={saveEdit} noValidate className="space-y-4">
+          <Field label="Status" id="e-status">
+            <Select id="e-status" value={editForm.status} onChange={setEdit("status")}>
+              <option value="live">Live</option>
+              <option value="draft">Draft</option>
+              <option value="closed">Closed</option>
+            </Select>
+          </Field>
+          <Field label="Deadline" id="e-deadline">
+            <Input id="e-deadline" type="date" value={editForm.deadline} onChange={setEdit("deadline")} />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Quota" id="e-quota" error={editFieldErrors.quota} hint="Blank = unlimited">
+              <Input id="e-quota" type="number" min="1" value={editForm.quota} error={editFieldErrors.quota} onChange={setEdit("quota")} />
+            </Field>
+            <Field label="Pay (₹)" id="e-amount" error={editFieldErrors.amount}>
+              <Input id="e-amount" type="number" min="0" step="1" value={editForm.amount} error={editFieldErrors.amount} onChange={setEdit("amount")} />
+            </Field>
+          </div>
+          <Field
+            label="Interests"
+            id="e-interests"
+            error={editFieldErrors.interests}
+            hint="Comma separated, e.g. food, tech. Matching surveys are highlighted for members."
+          >
+            <Input
+              id="e-interests"
+              value={editForm.interests}
+              error={editFieldErrors.interests}
+              onChange={setEdit("interests")}
+              placeholder="food, tech"
+            />
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" loading={savingEdit} disabled={savingEdit}>Save changes</Button>
+            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>Cancel</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
