@@ -18,6 +18,7 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False)
 Base = declarative_base()
 now = datetime.utcnow
 FK = lambda t: Column(Integer, ForeignKey(t))
+CASCADE = lambda t: Column(Integer, ForeignKey(t, ondelete="CASCADE"))
 
 class Source(Base):
     __tablename__ = "sources"
@@ -35,6 +36,9 @@ class Member(Base):
     ip = Column(String); device_id = Column(String)
     source = relationship("Source", foreign_keys=[source_id])
     referrer = relationship("Member", remote_side=[id])
+    completions = relationship("Completion", cascade="all, delete-orphan")
+    referrals_as_referred = relationship("Referral", foreign_keys="Referral.referred_member_id",
+                                        cascade="all, delete-orphan", back_populates="referred")
 
 class Survey(Base):
     __tablename__ = "surveys"
@@ -45,7 +49,7 @@ class Survey(Base):
 
 class SurveyRule(Base):
     __tablename__ = "survey_rules"
-    id = Column(Integer, primary_key=True); survey_id = FK("surveys.id")
+    id = Column(Integer, primary_key=True); survey_id = CASCADE("surveys.id")
     rule_type = Column(String); operator = Column(String); value = Column(String); strict_or_flexible = Column(String, default="strict")
 
 class EligibilityResult(Base):
@@ -56,13 +60,14 @@ class EligibilityResult(Base):
 
 class Referral(Base):
     __tablename__ = "referrals"
-    id = Column(Integer, primary_key=True); referrer_id = FK("members.id"); referred_member_id = Column(Integer, ForeignKey("members.id"), unique=True)
+    id = Column(Integer, primary_key=True); referrer_id = FK("members.id")
+    referred_member_id = Column(Integer, ForeignKey("members.id", ondelete="CASCADE"), unique=True)
     stage = Column(String, default="Lead"); failure_reason = Column(Text); updated_at = Column(DateTime, default=now)
-    referred = relationship("Member", foreign_keys=[referred_member_id])
+    referred = relationship("Member", foreign_keys=[referred_member_id], back_populates="referrals_as_referred")
 
 class Completion(Base):
     __tablename__ = "completions"
-    id = Column(Integer, primary_key=True); member_id = FK("members.id"); survey_id = FK("surveys.id")
+    id = Column(Integer, primary_key=True); member_id = CASCADE("members.id"); survey_id = FK("surveys.id")
     completed_at = Column(DateTime, default=now); quality_check_passed = Column(Boolean, default=False)
 
 class Payout(Base):
