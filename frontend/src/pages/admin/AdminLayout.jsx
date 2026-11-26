@@ -11,6 +11,7 @@ const tabs = [
   { to: "/admin/stats", label: "Source stats" },
   { to: "/admin/import", label: "Import CSV" },
   { to: "/admin/meta-leads", label: "Meta leads" },
+  { to: "/admin/meta-simulator", label: "Meta simulator" },
   { to: "/admin/payouts", label: "Payouts" },
   { to: "/admin/fraud", label: "Fraud queue" },
 ];

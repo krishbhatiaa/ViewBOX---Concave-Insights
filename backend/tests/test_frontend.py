@@ -129,3 +129,14 @@ def test_sheets_status_card_has_sync_button_and_toasts():
     assert "toast(`Synced" in stats and "toast(`Sync failed" in stats
     assert 'sessionStorage.getItem("vb_grid_filters")' in stats
     assert 'sessionStorage.setItem("vb_grid_filters"' in _read("pages/admin/GridPage.jsx")
+
+
+def test_meta_simulator_page_is_routed_and_linked():
+    page = _read("pages/MetaSimulator.jsx")
+    for label in ("Valid lead", "Duplicate lead", "Missing phone", "Send webhook"):
+        assert label in page
+    assert 'fetch("/api/meta/lead"' in page
+    assert "Status: ${result.status}" in page
+    assert "Graph API" in page
+    assert 'path="/admin/meta-simulator"' in _read("App.jsx")
+    assert 'to: "/admin/meta-simulator"' in _read("pages/admin/AdminLayout.jsx")

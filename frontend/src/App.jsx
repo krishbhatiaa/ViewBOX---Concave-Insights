@@ -11,6 +11,7 @@ import FraudPage from "./pages/admin/FraudPage.jsx";
 import GridPage from "./pages/admin/GridPage.jsx";
 import ImportPage from "./pages/admin/ImportPage.jsx";
 import MetaLeadsPage from "./pages/admin/MetaLeadsPage.jsx";
+import MetaSimulator from "./pages/MetaSimulator.jsx";
 import PayoutsPage from "./pages/admin/PayoutsPage.jsx";
 import SourcesPage from "./pages/admin/SourcesPage.jsx";
 import StatsPage from "./pages/admin/StatsPage.jsx";
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/admin/stats" element={<StatsPage />} />
             <Route path="/admin/import" element={<ImportPage />} />
             <Route path="/admin/meta-leads" element={<MetaLeadsPage />} />
+            <Route path="/admin/meta-simulator" element={<MetaSimulator />} />
             <Route path="/admin/payouts" element={<PayoutsPage />} />
             <Route path="/admin/fraud" element={<FraudPage />} />
           </Route>
