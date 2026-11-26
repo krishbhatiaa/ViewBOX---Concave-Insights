@@ -16,7 +16,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env            # optional; defaults work locally
-python -m app.seed              # loads demo data
+python -m app.seed              # loads demo data + the bundled 189-row respondent sample CSV
 uvicorn app.main:app --port 8000
 
 # terminal 2 — frontend
@@ -39,6 +39,7 @@ Note: `backend/requirements.txt` says "Tested, pinned environment (Python 3.13, 
 - Members (OTP is shown on screen): `9000000001` Priya (referrer), `…04` Karan (in cool-off), `…06` Anita (age 17 → Rejected), `…02`/`…03`/`…07` Priya's friends (Lead/Fit/Failed)
 - New signup: copy a link from Admin → Sources (`/signup?src=…`) or Priya's referral link from her home page
 - Messy import sample: `data/viewbox_respondents_sample.csv` — the real 189-row export (odd dates, `+91` phones, M/F/female genders, duplicate numbers, blank fields) — plus the tiny toy `data/messy_sample.csv`
+- Bundled sample: `data/viewbox_respondents_sample.csv` is imported by `python -m app.seed` (163 imported, 53 fixed, 110 warned, 26 skipped, with per-row reasons), and the same file can be uploaded from Admin → Import
 - Meta sample: see section 7
 
 ## 5. Features
@@ -56,7 +57,7 @@ Note: `backend/requirements.txt` says "Tested, pinned environment (Python 3.13, 
 | Home with live surveys + interest highlight from normalized comma-separated interest tags | Done |
 | Admin grid: search-as-you-type, filters, CSV **and Excel** export of current view; filter by survey result (Approved / Rejected / Waitlisted) with plain-language reason per member | Done |
 | Source dashboard (sign-ups / Fit / Completed) | Done |
-| Messy CSV import with count + per-row reasons | Done — dry-run preview, per-row fixed / warned / skipped report; tested against the real `data/viewbox_respondents_sample.csv` (189 rows → 163 imported, 26 skipped; seeded run: 53 fixed, 110 warned) |
+| Messy CSV import with count + per-row reasons | Done — dry-run preview, per-row fixed / warned / skipped report; the real `data/viewbox_respondents_sample.csv` is also seeded (189 rows → 163 imported, 53 fixed, 110 warned, 26 skipped) |
 | Import preview before commit (dry-run, `?dry_run=true`) | Done — preview report, then Confirm import |
 | `GET /webhooks/meta` verify handshake; `POST /api/meta/lead` accepts simple dev fields or wrapped Meta envelope, dedupes, flags invalid leads, signs POSTs when `META_WEBHOOK_SECRET` is set, and fetches fields through `LeadFetcher` (Graph API or mock) | Done |
 | Empty / loading / error states | Done (manually checked, no UI tests) |
@@ -67,7 +68,7 @@ Note: `backend/requirements.txt` says "Tested, pinned environment (Python 3.13, 
 | Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | React + Vite + Tailwind frontend | Done |
-| Automated tests (pytest API suite, 125 tests: eligibility outcomes + cool-off + quota + deadline cycle + age bounds, interest matching, admin referrals, profile completeness, HMAC link/Meta forgery + handshake, OTP + per-IP rate limits, messy import, Meta dedupe + Graph envelope, admin-auth loop over every `/api/admin` route, static frontend checks) | Done — `cd backend && python -m pytest` |
+| Automated tests (pytest API suite, 126 tests: eligibility outcomes + cool-off + quota + deadline cycle + age bounds, interest matching, admin referrals, profile completeness, HMAC link/Meta forgery + handshake, OTP + per-IP rate limits, messy import, Meta dedupe + Graph envelope, admin-auth loop over every `/api/admin` route, static frontend checks) | Done — `cd backend && python -m pytest` |
 | Meta leads admin view + per-campaign breakdown | Done - Admin ? Meta leads; `GET /api/admin/meta-leads` + `/stats` |
 | Tier 3 "wow" feature | Done - (b) LLM rule suggestion: Admin ? Surveys ? "Suggest rules" (LLM when `LLM_API_KEY` set, offline keyword fallback otherwise); suggestions are editable and only saved via Create survey |
 

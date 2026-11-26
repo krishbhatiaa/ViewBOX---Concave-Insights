@@ -39,6 +39,13 @@ These changes were implemented after `01_user_flow.md` and `02_database.md` were
 - HMAC verification still covers the exact raw POST body when `META_WEBHOOK_SECRET` is set; duplicates, malformed envelopes, invalid fields and Graph failures produce plain-language responses.
 - The simulator has a payload-format switch and a handshake test button, with the same response panel for both actions.
 
+## 6. Bundled respondent sample as seed data
+
+- `python -m app.seed` now imports `data/viewbox_respondents_sample.csv` through the same `run_import()` service used by Admin → Import.
+- The bundled file is accepted under either `viewbox_respondent_sample.csv` or `viewbox_respondents_sample.csv`.
+- Seed output reports the real result: 189 rows → 163 imported, 53 fixed, 110 warned, 26 skipped.
+- Imported rows keep normalized phones, dates, genders, income buckets, semicolon-separated interests, legacy referrers, sources and completion history, so the grid, source dashboard, referral stages, interest matching and cool-off rules all have realistic data from the first run.
+
 ## Schema and migration note
 
 - The only new persisted column is `surveys.interests` (`Text`, nullable). It is declared in `backend/app/models.py`, added to existing SQLite databases by `_ensure_columns()` in `backend/app/main.py`, and populated by `backend/app/seed.py`.

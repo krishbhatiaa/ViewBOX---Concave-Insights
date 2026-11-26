@@ -1,7 +1,28 @@
 from datetime import datetime, timedelta, date
 from decimal import Decimal
+from pathlib import Path
 from .models import *
 from . import security as sec
+from .services.importer import run_import
+
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+SAMPLE_CSV_NAMES = ("viewbox_respondent_sample.csv", "viewbox_respondents_sample.csv")
+
+
+def sample_csv_path():
+    for name in SAMPLE_CSV_NAMES:
+        path = DATA_DIR / name
+        if path.exists():
+            return path
+    return None
+
+
+def import_sample_respondents(db):
+    path = sample_csv_path()
+    if path is None:
+        return None
+    text = path.read_text(encoding="utf-8-sig")
+    return run_import(db, text, path.name, False)
 
 def seed():
     Base.metadata.drop_all(engine); Base.metadata.create_all(engine); db = SessionLocal()
@@ -41,7 +62,12 @@ def seed():
     db.add_all([z, t, i]); db.flush()
     db.add(Completion(member_id=k.id, survey_id=z.id, completed_at=now - timedelta(days=20), quality_check_passed=True))
     kr = db.query(Referral).filter_by(referred_member_id=k.id).first()
-    db.add_all([Payout(member_id=k.id, survey_id=z.id, amount=Decimal("300.00"), status="Paid"), Payout(member_id=p.id, survey_id=z.id, referral_id=kr.id, amount=Decimal("100.00"), status="Pending")]); db.commit(); db.close()
+    db.add_all([Payout(member_id=k.id, survey_id=z.id, amount=Decimal("300.00"), status="Paid"), Payout(member_id=p.id, survey_id=z.id, referral_id=kr.id, amount=Decimal("100.00"), status="Pending")])
+    sample = import_sample_respondents(db)
+    db.commit(); db.close()
     print("Seeded. Admin: admin@concave.test / admin123 | Members: 9000000001..9000000007, ring 9000000010..9000000012, device pair 9000000013..9000000014")
+    if sample:
+        print(f"Bundled sample CSV: {sample['imported']} imported, {sample['fixed']} fixed, "
+              f"{sample['warned']} warned, {sample['skipped']} skipped.")
 
 if __name__ == "__main__": seed()

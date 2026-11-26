@@ -20,6 +20,7 @@ Scoring: Thinking 30% - UI/UX 30% - Code 20% - Git and Docs 20%. A flawless core
 - [x] Grid status filter also supports Approved / Rejected / Waitlisted (per survey)
 - [x] Excel (.xlsx) export in addition to CSV (openpyxl)
 - [x] Test with the REAL `viewbox_respondents_sample.csv` (~200 rows); fix parser for its actual mess (dates, phones, gender, duplicates, blank fields, encoding)
+- [x] Bundled respondent sample is seeded on first run through the same importer (163 imported, 53 fixed, 110 warned, 26 skipped with reasons)
 - [x] First touch vs last touch: first-seen link kept in browser, sent as `first_src`; `source_id` = last touch, `first_touch_source_id` = first touch (no separate touch log yet)
 - [x] Source-conflict case verified: Instagram link + typed referrer => source Instagram, referrer credited
 - [x] Typed referrer on the fallback form (matched by exact phone number, not ambiguous names)
@@ -47,7 +48,7 @@ For EVERY screen confirm empty, loading and error states:
 - [x] Split `main.py` into `routers/` (auth, member, admin, importer, meta), `schemas.py`, `services/` (grid, importer, referral), `deps.py`; `main.py` is a thin app factory
 - [x] Frontend folders: components, pages, hooks, api (or split JS modules)
 - [x] Pydantic validation on every endpoint, incl. query params (`Literal` statuses, `max_length` on search)
-- [x] pytest suite (125): eligibility outcomes + cool-off + quota + 15-day deadline + age bounds, interest matching, admin referrals, profile completeness, HMAC verify/forgery + Meta handshake, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + Graph envelope + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation, static frontend checks
+- [x] pytest suite (126): eligibility outcomes + cool-off + quota + 15-day deadline + age bounds, interest matching, admin referrals, profile completeness, HMAC verify/forgery + Meta handshake, OTP + per-IP rate limit, import messy rows, Meta dedupe/invalid + Graph envelope + webhook signature, auth required on admin routes (loops all `/api/admin/*`), query validation, static frontend checks
 - [x] Logging for skipped rows / errors; friendly message to the user
 - [x] Pin versions in `requirements.txt`; seed script idempotent (drop + recreate)
 - [x] Remove dead code (pyflakes clean), short docstrings where the logic is non-obvious
