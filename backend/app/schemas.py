@@ -87,6 +87,16 @@ class SurveyPatchIn(BaseModel):
         return v
 
 
+class GridFilterIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    q: str = Field(default="", max_length=100)
+    source_id: Optional[int] = None
+    city: str = Field(default="", max_length=60)
+    status: str = Field(default="", max_length=30)
+    survey_id: Optional[int] = None
+
+
 class SuggestRulesIn(BaseModel):
     title: str = Field(min_length=3, max_length=120)
     description: str = Field(default="", max_length=2000)

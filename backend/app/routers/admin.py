@@ -13,9 +13,9 @@ from .. import security as sec
 from ..deps import admin_auth, db_dep, link_for, slugify
 from ..models import (AdminOverride, AdminUser, Completion, FraudFlag, Member, MetaLead, Payout,
                       Referral, Source, Survey, SurveyRule)
-from ..schemas import (AdminLogin, FlagReviewIn, OverrideIn, PayoutStatusIn, SourceIn, StageIn,
-                       SuggestRulesIn, SurveyIn, SurveyPatchIn)
-from ..services import audit, grid as grid_svc
+from ..schemas import (AdminLogin, FlagReviewIn, GridFilterIn, OverrideIn, PayoutStatusIn, SourceIn,
+                       StageIn, SuggestRulesIn, SurveyIn, SurveyPatchIn)
+from ..services import audit, grid as grid_svc, sheets
 from ..services.referral import set_stage as apply_stage
 from ..services.rule_suggest import suggest_rules
 
@@ -119,6 +119,28 @@ def export(q: str = Query("", max_length=100), source_id: Optional[int] = None,
                                  headers={"Content-Disposition": "attachment; filename=members.xlsx"})
     return StreamingResponse(iter([grid_svc.to_csv(rows, fields)]), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=members.csv"})
+
+
+# ---------- Google Sheets sync ----------
+@router.get("/api/admin/sheets/status")
+def sheets_status(_=Depends(admin_auth), db: Session = Depends(db_dep)):
+    return sheets.status(db)
+
+
+@router.post("/api/admin/sheets/push")
+def sheets_push(b: Optional[GridFilterIn] = Body(None), _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    try:
+        return sheets.push(db, (b or GridFilterIn()).model_dump())
+    except sheets.SheetSyncError as exc:
+        raise HTTPException(502, str(exc))
+
+
+@router.post("/api/admin/sheets/pull")
+def sheets_pull(worksheet: str = Query("sheet1", max_length=100), _=Depends(admin_auth), db: Session = Depends(db_dep)):
+    try:
+        return sheets.pull(db, worksheet)
+    except sheets.SheetSyncError as exc:
+        raise HTTPException(502, str(exc))
 
 
 # ---------- referral stages ----------

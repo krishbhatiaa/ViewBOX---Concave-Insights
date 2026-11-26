@@ -10,6 +10,8 @@ python-multipart==0.0.34
 httpx==0.28.1
 pytest==9.2.0
 openpyxl==3.1.5
+gspread==6.2.1
+google-auth==2.40.3
 
 # --- transitives (pinned so a fresh install matches what the test suite ran on) ---
 starlette==1.10.0

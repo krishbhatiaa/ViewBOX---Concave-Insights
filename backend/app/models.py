@@ -112,5 +112,5 @@ class AuditEvent(Base):
 class SheetSyncLog(Base):
     __tablename__ = "sheet_sync_log"
     id = Column(Integer, primary_key=True)
-    entity_type = Column(String); direction = Column(String); status = Column(String)
+    entity_type = Column(String); direction = Column(String); status = Column(String); row_count = Column(Integer)
     error_text = Column(Text); synced_at = Column(DateTime, default=now)

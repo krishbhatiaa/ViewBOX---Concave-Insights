@@ -30,7 +30,8 @@ def _ensure_columns():
     """SQLite has no ALTER COLUMN: add columns introduced after a table was created."""
     from sqlalchemy import inspect, text
     want = {"members": {"ip": "VARCHAR", "device_id": "VARCHAR"},
-            "fraud_flags": {"reviewed_by": "VARCHAR", "reviewed_at": "DATETIME"}}
+            "fraud_flags": {"reviewed_by": "VARCHAR", "reviewed_at": "DATETIME"},
+            "sheet_sync_log": {"row_count": "INTEGER"}}
     insp = inspect(engine)
     with engine.begin() as conn:
         for name in ("audit_events", "sheet_sync_log"):
