@@ -98,8 +98,10 @@ def test_dead_code_and_unused_theme_tokens_removed():
     assert 'stage === "Approved" || stage === "Approved by ops"' not in _read("components/ui.jsx")
 
     css = _read("index.css")
-    for token in ("--color-accent", "--color-ink:", "--color-surface:", "--radius-card", "--spacing-card"):
+    for token in ("--color-accent", "--color-surface:", "--radius-card", "--spacing-card"):
         assert token not in css
+    for token in ("--color-paper:", "--color-ink:", "--color-acc:", "--font-display:"):
+        assert token in css
 
 
 def test_theme_toggle_is_persisted_and_mounted_in_both_layouts():
