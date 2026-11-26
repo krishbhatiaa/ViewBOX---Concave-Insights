@@ -208,3 +208,11 @@ def test_member_layout_guards_incomplete_profiles_and_profile_can_patch():
     assert 'method: "PATCH"' in profile
     assert 'api("/api/me"' in profile
     assert "Save profile" in profile
+
+
+def test_survey_cycle_limit_frontend():
+    surveys = _read("pages/admin/SurveysPage.jsx")
+    assert "CYCLE_DAYS = 15" in surveys
+    assert surveys.count("max={deadlineMax()}") == 2
+    assert "Surveys run for at most ${CYCLE_DAYS} days." in surveys
+    assert 'err.message.toLowerCase().includes("deadline")' in surveys

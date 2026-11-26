@@ -1,6 +1,7 @@
 """Every request schema (Pydantic) in one place, so validation is consistent across routers."""
+import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
@@ -17,6 +18,23 @@ def normalize_interests(values: List[str]) -> List[str]:
     if any(len(tag) > 40 for tag in result):
         raise ValueError("Each interest tag must be 40 characters or fewer.")
     return result
+
+
+SURVEY_MAX_CYCLE_DAYS = int(os.getenv("SURVEY_MAX_CYCLE_DAYS", "15"))
+
+
+def validate_survey_deadline(deadline: Optional[datetime], created_at: Optional[datetime] = None) -> None:
+    if deadline is None:
+        return
+    start = created_at or datetime.utcnow()
+    if deadline <= start:
+        raise ValueError("Deadline must be in the future.")
+    latest = start + timedelta(days=SURVEY_MAX_CYCLE_DAYS)
+    if deadline > latest:
+        raise ValueError(
+            f"Deadline must be within {SURVEY_MAX_CYCLE_DAYS} days of launch "
+            f"(latest allowed: {latest:%Y-%m-%d %H:%M} UTC)."
+        )
 
 
 class PhoneIn(BaseModel):
@@ -85,6 +103,12 @@ class SurveyIn(BaseModel):
     interests: List[str] = []
     rules: List[RuleIn] = []
 
+    @field_validator("deadline")
+    @classmethod
+    def _deadline(cls, v):
+        validate_survey_deadline(v)
+        return v
+
     @field_validator("interests")
     @classmethod
     def _interests(cls, v):
@@ -99,13 +123,6 @@ class SurveyPatchIn(BaseModel):
     quota: Optional[int] = Field(default=None, gt=0)
     amount: Optional[float] = Field(default=None, ge=0)
     interests: Optional[List[str]] = None
-
-    @field_validator("deadline")
-    @classmethod
-    def _future(cls, v):
-        if v is not None and v <= datetime.utcnow():
-            raise ValueError("deadline must be in the future")
-        return v
 
     @field_validator("interests")
     @classmethod

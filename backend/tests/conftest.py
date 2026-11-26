@@ -1,5 +1,6 @@
 import os
 import tempfile
+from datetime import datetime, timedelta
 
 # Must be set before any app module is imported (models.py reads it at import time).
 TEST_DB = os.path.join(tempfile.gettempdir(), "viewbox_pytest.db")
@@ -34,7 +35,8 @@ def member_token(c, phone):
     return {"Authorization": "Bearer " + r.json()["token"]}
 
 
-def make_survey(c, headers, title, rules, amount=100, quota=None, deadline="2027-06-30T00:00:00"):
+def make_survey(c, headers, title, rules, amount=100, quota=None, deadline=None):
+    deadline = deadline or (datetime.utcnow() + timedelta(days=10)).isoformat()
     r = c.post("/api/admin/surveys", json={"title": title, "description": "test survey",
                                            "deadline": deadline, "quota": quota, "amount": amount,
                                            "rules": rules}, headers=headers)

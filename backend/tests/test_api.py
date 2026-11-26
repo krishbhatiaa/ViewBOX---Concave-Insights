@@ -1,6 +1,6 @@
 import io
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from conftest import admin_headers, make_survey, member_token, signup_member
 
@@ -140,7 +140,12 @@ def test_full_quota_rejects_new_members(client, admin):
 def test_past_deadline_rejects(client, admin):
     sid = make_survey(client, admin, "Closed Survey", [
         {"rule_type": "age", "value": "18-60", "strict_or_flexible": "strict"},
-    ], amount=100, deadline="2020-01-01T00:00:00")
+    ], amount=100)
+    from app.models import SessionLocal, Survey
+    db = SessionLocal()
+    db.get(Survey, sid).deadline = datetime(2020, 1, 1)
+    db.commit()
+    db.close()
     phone = "9810000103"
     signup_member(client, phone, name="Late Visitor", dob="1995-01-01", city="Mumbai")
     mh = member_token(client, phone)

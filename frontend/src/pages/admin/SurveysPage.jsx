@@ -27,7 +27,12 @@ const RULE_TYPES = [
   { value: "income", label: "Income", placeholder: "5-10L,10L+" },
 ];
 
+const CYCLE_DAYS = 15;
 let ruleKey = 0;
+
+function deadlineMax() {
+  return new Date(Date.now() + CYCLE_DAYS * 86400000).toISOString().slice(0, 10);
+}
 
 function parseInterests(value) {
   const seen = new Set();
@@ -157,6 +162,10 @@ export default function SurveysPage() {
       load();
     } catch (err) {
       setEditError(err.message);
+      setEditFieldErrors((fe) => ({
+        ...fe,
+        deadline: err.message.toLowerCase().includes("deadline") ? err.message : fe.deadline,
+      }));
     } finally {
       setSavingEdit(false);
     }
@@ -225,6 +234,10 @@ export default function SurveysPage() {
       load();
     } catch (err) {
       setFormError(err.message);
+      setFieldErrors((fe) => ({
+        ...fe,
+        deadline: err.message.toLowerCase().includes("deadline") ? err.message : fe.deadline,
+      }));
     } finally {
       setSaving(false);
     }
@@ -259,8 +272,8 @@ export default function SurveysPage() {
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Deadline" id="s-deadline">
-              <Input id="s-deadline" type="date" value={form.deadline} onChange={set("deadline")} />
+            <Field label="Deadline" id="s-deadline" error={fieldErrors.deadline} hint={`Surveys run for at most ${CYCLE_DAYS} days.`}>
+              <Input id="s-deadline" type="date" value={form.deadline} error={fieldErrors.deadline} max={deadlineMax()} onChange={set("deadline")} />
             </Field>
             <Field label="Quota" id="s-quota" error={fieldErrors.quota} hint="Blank = unlimited">
               <Input id="s-quota" type="number" min="1" value={form.quota} error={fieldErrors.quota} onChange={set("quota")} placeholder="50" />
@@ -389,8 +402,8 @@ export default function SurveysPage() {
               <option value="closed">Closed</option>
             </Select>
           </Field>
-          <Field label="Deadline" id="e-deadline">
-            <Input id="e-deadline" type="date" value={editForm.deadline} onChange={setEdit("deadline")} />
+          <Field label="Deadline" id="e-deadline" error={editFieldErrors.deadline} hint={`Surveys run for at most ${CYCLE_DAYS} days from launch.`}>
+            <Input id="e-deadline" type="date" value={editForm.deadline} error={editFieldErrors.deadline} max={deadlineMax()} onChange={setEdit("deadline")} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Quota" id="e-quota" error={editFieldErrors.quota} hint="Blank = unlimited">

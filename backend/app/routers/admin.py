@@ -17,7 +17,7 @@ from ..deps import admin_auth, db_dep, link_for, slugify
 from ..models import (AdminOverride, AdminUser, AuditEvent, Completion, FraudFlag, Member, MetaLead,
                        Payout, Referral, Source, Survey, SurveyRule, TouchEvent)
 from ..schemas import (AdminLogin, FlagReviewIn, GridFilterIn, OverrideIn, PayoutStatusIn, SourceIn,
-                       StageIn, SuggestRulesIn, SurveyIn, SurveyPatchIn)
+                        StageIn, SuggestRulesIn, SurveyIn, SurveyPatchIn, validate_survey_deadline)
 from ..services import audit, grid as grid_svc, sheets
 from ..services.referral import set_stage as apply_stage
 from ..services.rule_suggest import suggest_rules
@@ -108,7 +108,13 @@ def patch_survey(sid: int, b: SurveyPatchIn, _=Depends(admin_auth), db: Session 
     s = db.get(Survey, sid)
     if not s:
         raise HTTPException(404, "Survey not found.")
-    for field, value in b.model_dump(exclude_unset=True).items():
+    changes = b.model_dump(exclude_unset=True)
+    if "deadline" in changes:
+        try:
+            validate_survey_deadline(changes["deadline"], s.created_at)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+    for field, value in changes.items():
         if field == "interests":
             value = ",".join(value)
         setattr(s, field, value)
