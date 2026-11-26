@@ -16,15 +16,25 @@ from .services.ratelimit import rate_limiter, warn_if_inmemory_multiworker
 
 log = logging.getLogger("viewbox")
 
-# CORS: FRONTEND_URL may be comma-separated (e.g. Vite dev server + built app)
-_origins = [o.strip() for o in os.getenv("FRONTEND_URL", "http://localhost:8000").split(",") if o.strip()]
-_origins += ["http://localhost:5173", "http://127.0.0.1:5173"]
+_origins = [os.getenv("FRONTEND_URL", "http://localhost:8000").strip(), "http://localhost:5173"]
 
 warn_if_inmemory_multiworker(rate_limiter, int(os.getenv("WEB_CONCURRENCY", os.getenv("WORKERS", "1"))))
 
 app = FastAPI(title="ViewBox Panel System")
-app.add_middleware(CORSMiddleware, allow_origins=list(dict.fromkeys(_origins)),
+app.add_middleware(CORSMiddleware, allow_origins=_origins, allow_credentials=True,
                    allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    )
+    return response
 
 Base.metadata.create_all(engine)
 
