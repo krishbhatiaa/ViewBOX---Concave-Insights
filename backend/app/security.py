@@ -54,6 +54,7 @@ def check_otp(phone: str, otp: str):
     if not rec or rec[1] < t or rec[0] != otp:
         raise HTTPException(400, "That OTP is incorrect or has expired. Please request a new one.")
     _otps.pop(phone, None)
+    _attempts.pop(phone, None)
 
 def mask(phone: str) -> str:
     return phone[:2] + "X" * 6 + phone[-2:] if phone and len(phone) >= 4 else "XXXX"
