@@ -166,3 +166,16 @@ def test_payouts_page_has_batch_approval_modal():
     assert '"/api/admin/payouts/batch-approve"' in page
     assert "totalling ₹{money(selectedTotal)}?" in page
     assert "Modal" in page
+
+
+def test_main_sanitizes_and_signs_attribution_before_localstorage():
+    main = _read("main.jsx")
+    assert "/api/links/sign?" in main
+    assert '.replace(/\\r/g, "")' in main
+    assert '.replace(/\\n/g, "")' in main
+    assert '.replace(/;/g, "")' in main
+    assert '.replace(/\\0/g, "")' in main
+    assert '.slice(0, 64)' in main
+    assert 'localStorage.setItem("vb_src", signed.src)' in main
+    assert 'localStorage.setItem("vb_ref", signed.ref)' in main
+    assert 'localStorage.setItem("vb_src", qs.get("src"))' not in main

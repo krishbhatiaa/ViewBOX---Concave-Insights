@@ -3,18 +3,24 @@ from fastapi import HTTPException
 
 SECRET = os.getenv("APP_SECRET", "dev-secret-change-me").encode()
 
+def sanitize_param(value: str | None, limit: int = 64) -> str:
+    """Strip CRLF/semicolon/NUL from a user-supplied attribution value."""
+    return str(value or "").replace("\r", "").replace("\n", "").replace(";", "").replace("\x00", "")[:limit]
+
 def _sig(s: str) -> str:
     return hmac.new(SECRET, s.encode(), hashlib.sha256).hexdigest()[:24]
 
 def sign_link(kind: str, value: str) -> str:
-    return f"{value}.{_sig(kind + ':' + value)}"
+    clean = sanitize_param(value)
+    return f"{clean}.{_sig(kind + ':' + clean)}"
 
 def verify_link(kind: str, token: str | None):
-    """Return the value if the HMAC is valid, else None."""
+    """Return the sanitized value if the HMAC is valid, else None."""
     try:
-        value, sig = (token or "").rsplit(".", 1)
+        value, sig = sanitize_param(token, 128).rsplit(".", 1)
     except ValueError:
         return None
+    value = sanitize_param(value)
     return value if hmac.compare_digest(sig, _sig(kind + ":" + value)) else None
 
 def make_token(sub, role: str, ttl=86400) -> str:

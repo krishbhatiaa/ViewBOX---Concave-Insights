@@ -77,6 +77,13 @@ def signup(b: SignupIn, request: Request, x_device_id: str = Header(None), db: S
     return {"token": sec.make_token(m.id, "member"), "notes": notes}
 
 
+@router.get("/api/links/sign")
+def sign_links(src: str = Query("", max_length=400), ref: str = Query("", max_length=400)):
+    """Return signed attribution values for the signup page localStorage path."""
+    return {"src": sec.sign_link("src", src) if src else None,
+            "ref": sec.sign_link("ref", ref) if ref else None}
+
+
 @router.get("/api/links/resolve")
 def resolve_links(request: Request, src: str = Query("", max_length=400), ref: str = Query("", max_length=400),
                   db: Session = Depends(db_dep)):
