@@ -26,6 +26,11 @@ npm run dev                     # http://localhost:5173
 ```
 Open http://localhost:5173 (UI) or http://localhost:8000 (serves `frontend/dist` if built, otherwise run the UI through Vite), and http://localhost:8000/docs (API).
 
+All keys go in `backend/.env` (copy `backend/.env.example` to `backend/.env`; it is gitignored and loaded automatically on startup — restart uvicorn after editing).
+
+- Groq rule suggestions: `LLM_API_KEY=gsk_...`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, `LLM_MODEL=llama-3.3-70b-versatile`.
+- Google Forms/Sheets: enable the **Forms API** and **Drive API**, create a service account, and put the full downloaded JSON on one line as `GOOGLE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'`. Set `GOOGLE_FORM_SHARE_WITH=you@gmail.com` so the created form is visible to your Google account; otherwise the generated link can show “Sorry, the file you have requested does not exist”. For response sync set `GOOGLE_FORM_RESPONSES_SHEET_ID` (the ID in the Sheet URL) and share that Sheet with the service account email as an editor. Without these, links and sync use local demo data instead.
+
 Tests (backend API suite, uses its own throwaway DB):
 ```bash
 cd backend && python -m pytest
@@ -65,7 +70,7 @@ Note: `backend/requirements.txt` says "Tested, pinned environment (Python 3.13, 
 | Payout ledger / approval | Done — Payouts screen; Paid blocked until Approved (API-enforced); every payout gets a unique UTR shown to ops and only to that payout's member |
 | Admin manual override | Done — endpoint + “Override…” in the members grid; engine honours it |
 | Admin creates/edits surveys + Strict/Flexible rules and interest tags (UI); deadlines capped at 15 days from launch | Done |
-| Google Forms per survey | Done — a matching form is created with every survey (live Forms API when credentials are set, local demo link otherwise), members can open it, responses land in the shared grid as `Google Form` leads and sync to `data/google_form_leads.xlsx` |
+| Google Forms per survey | Done — a matching form is created with every survey (live Forms API when credentials are set, local demo link otherwise), members can open it, responses land in the shared grid as `Google Form` leads and sync to `data/google_form_leads.xlsx`; response sync pulls a live Sheet when configured, otherwise it reads `data/google_form_responses.csv` (override with `GOOGLE_FORM_RESPONSES_LOCAL_PATH`) |
 | Ops marks Completed (survey + quality check) -> starts 3-month cool-off | Done |
 | Member status panel (stage, completions, earnings) + referrer sees bonus status | Done |
 | React + Vite + Tailwind frontend | Done |

@@ -1,13 +1,19 @@
 ================================================================================
 VIEWBOX PANEL SYSTEM — FULL PROJECT STATUS / BUILD RECORD (updated.txt)
-Generated: 2026-11-26
+Generated / last verified: 2026-11-27
 Repo: C:\Users\Admin\Desktop\ViewBOX1\viewbox
-Local HEAD before final documentation commit: 24caea2 (feat: surface UTRs and Google Forms in portal and admin UI)
+Local HEAD: 2f6c5f7 plus the 2026-11-27 batch commit (see git log)
 Branch: main
-Local history before final documentation commit: 74 commits
-Remote: https://github.com/krishbhatiaa/ViewBOX---Concave-Insights.git (pushed directly by URL; no named origin alias)
+Local history: 76 commits through the 2026-11-27 batch (75 through 2f6c5f7 plus
+               one batch commit); see Part 10 for the earlier ledger.
+Remote: https://github.com/krishbhatiaa/ViewBOX---Concave-Insights.git (pushed
+        directly by URL; no named origin alias is configured locally)
 Purpose: searchable factual record of what was built, the tech used, the methods
          used to build it, validation evidence, and honest prototype limits.
+Scope:   all work through 2f6c5f7 PLUS the 2026-11-27 work batch documented in
+         Part 15, committed and pushed to remote main. Final full-suite status
+         is 136 passed; the CSP test expectation was aligned with the intentional
+         font-src change.
 ================================================================================
 
 PART 0 — EXECUTIVE SUMMARY
@@ -24,18 +30,29 @@ ViewBOX is a full-stack referral survey panel prototype:
     toasts, modals, theme toggle, signed attribution capture, QR download,
     Meta webhook simulator, charts, batch payout approval, Google Form links,
     form-response sync/download actions, and UTR columns.
-  * 132 backend tests pass serially; frontend production build passes; the local
-    app is verified on ports 8000 (API/docs) and 5173 (built SPA + /api proxy).
+  * Backend suite: 132 tests passed before the 2026-11-27 batch, 136 passed
+    after the .env/Forms-sync batch, and 136 passed in the final verification
+    after the CSP test expectation was aligned with the intentional font-src
+    change in backend/app/main.py.
+    Frontend production build passes. Ports 8000 and 5173 were verified live on
+    2026-11-26; neither port had an active listener during the 2026-11-27 check.
+  * backend/.env is now auto-loaded on startup with shell values taking priority;
+    Google Form sync also works without Google credentials by reading a bundled
+    local response CSV, and created Forms can be shared with configured emails.
   * Everything is pinned for repeatability; the runtime still needs a fresh
     clean-machine setup proof, CI, frontend tests, Redis for multi-worker rate
     limits, real OTP/payments, and production secret management.
   * This is a prototype. It is not claimed to be unhackable.
 
-Working tree state at generation: the backend and frontend code commits
-(e80fd97 and 24caea2) are committed and pushed; this updated.txt rewrite plus
-README.md are the final documentation commit. The previously local style
-commits e64f5b9..94a8a22 were also pushed in separate pushes before the feature
-work.
+Working tree state at final verification: the 2026-11-27 batch is committed on
+top of 2f6c5f7 and pushed to remote main directly by HTTPS URL (no named origin
+alias). The batch covers README.md, backend/.env.example, backend/app/__init__.py,
+backend/app/main.py, backend/app/services/google_forms.py, backend/tests/conftest.py,
+backend/tests/test_google_forms.py, backend/tests/test_repo_hygiene.py,
+backend/tests/test_security_headers.py (CSP expectation aligned),
+frontend/src/pages/admin/SurveysPage.jsx, updated.txt, TASKS_left.txt, and
+data/google_form_responses.csv. Final verification: 136 backend tests passed
+and the frontend production build passed.
 
 --------------------------------------------------------------------------------
 PART 1 — TECH STACK (verified against requirements.txt and package.json)
@@ -85,14 +102,21 @@ DATABASE
   Schema drift:   handled by create_all() + idempotent _ensure_columns() shim
 
 TOOLING / METHOD
-   Iterative commits: 74 commits before the final documentation commit, from
-                      scaffold through P3, SEC hardening, later product/style
-                      work, UTR payouts, and Google Forms.
+   Iterative commits: 76 local commits through the 2026-11-27 batch commit, from
+                       scaffold through P3, SEC hardening, later product/style work,
+                       UTR payouts, Google Forms, and the final documentation refresh.
+                       The 2026-11-27 batch is committed and pushed to remote main.
 
-  Validation:        pytest serial only; npm run build; pip-audit; static tests
-                     assert frontend strings, repo hygiene, headers, tokens, etc.
-  Git:               conventional feat/fix/docs/test/chore messages in current work.
-  Secrets:           only .env.example committed; never real credentials.
+   Validation:        pytest serial only (136 passed in the final verification);
+                       npm run build passed;
+                      static tests assert frontend strings, repo hygiene, headers,
+                      tokens, .env loading, and Google Forms sync behavior.
+                      pip-audit was clean in the earlier SEC10 run, but the module
+                      is not installed in the current interpreter, so that audit
+                      was not re-run on 2026-11-27.
+   Git:               conventional feat/fix/docs/test/chore messages in current work.
+   Secrets:           only .env.example committed; no backend/.env exists locally
+                      at verification time; never real credentials.
 
 --------------------------------------------------------------------------------
 PART 2 — BACKEND ARCHITECTURE AND SOURCE MAP
@@ -108,6 +132,9 @@ ENTRYPOINT
       X-Frame-Options: DENY
       Referrer-Policy: no-referrer
       Content-Security-Policy: conservative prototype policy.
+    * 2026-11-27 change: CSP now also allows `font-src 'self' data:` so locally
+      bundled font files load in the built SPA. tests/test_security_headers.py
+      was aligned with this value, and the final suite is green.
     * Global exception handler logs correlation id + exception type only and
       returns a generic 500 with correlation_id (no stack trace to client).
     * Serves frontend/dist with a path-traversal guard and SPA deep-link fallback;
@@ -144,6 +171,12 @@ ROUTERS
   backend/app/routers/meta.py         Meta webhook lead endpoint
   backend/app/routers/google_forms.py Google Form response webhook (HMAC optional)
 
+BOOTSTRAP
+  backend/app/__init__.py
+    * Added in the 2026-11-27 batch: tiny dependency-free loader that reads
+      backend/.env on package import, strips comments/quotes/export prefixes,
+      and uses os.environ.setdefault() so real shell/CI values always win.
+
 SERVICES
   backend/app/services/audit.py          sanitized append-only audit log writer
   backend/app/services/ratelimit.py      RateLimiter interface, in-memory and Redis swap
@@ -152,7 +185,9 @@ SERVICES
   backend/app/services/grid.py           member grid rows + CSV/XLSX export
   backend/app/services/rule_suggest.py   OpenAI-compatible LLM rule suggester + offline fallback
   backend/app/services/sheets.py         Google Sheets push/pull with sync log
-  backend/app/services/google_forms.py   form creation, lead ingest, .xlsx sync, Sheet pull
+  backend/app/services/google_forms.py   form creation, lead ingest, .xlsx sync, Sheet pull,
+                                         local CSV fallback, optional Drive sharing,
+                                         explicit survey_id routing, and mode reporting
 
 --------------------------------------------------------------------------------
 PART 3 — DATABASE MODEL (17 tables in backend/app/models.py)
@@ -278,7 +313,12 @@ ADMIN SOURCES / SURVEYS
 
 ADMIN GOOGLE FORMS
   GET    /api/admin/google-form-leads  List captured Google Form responses.
-  POST   /api/admin/google-forms/sync  Pull linked Sheet responses and refresh the .xlsx.
+  POST   /api/admin/google-forms/sync  Pull linked Sheet responses when Google
+                                       credentials + Sheet ID are configured;
+                                       otherwise read data/google_form_responses.csv
+                                       (or GOOGLE_FORM_RESPONSES_LOCAL_PATH), refresh
+                                       the .xlsx, and report mode="sheet"|"local",
+                                       synced, duplicates, failed, and errors.
   GET    /api/admin/google-form-leads/export  Download google_form_leads.xlsx.
 
 ADMIN GRID / EXPORT / SHEETS
@@ -405,19 +445,33 @@ META LEADS
 GOOGLE FORMS
   * POST /api/admin/surveys creates a matching Google Form titled after the survey.
     With GOOGLE_SERVICE_ACCOUNT_JSON the live Forms API creates name/phone/city/
-    email questions; without credentials a deterministic local demo link is stored
-    and google_form_mode is "demo".
-  * POST /api/google-forms/lead accepts {response_id, form_id, fields}, normalizes
-    phone/name/city/email, dedupes by response_id, links to the survey's Google Form
-    source, creates a minimal Member + Referral for valid responses, and writes a
-    GoogleFormLead row with source "Google Form".
+    email questions; without credentials a local mock responder link is stored and
+    google_form_mode records "live" or "mock" (the UI also handles legacy "demo").
+  * 2026-11-27: live form creation now requests forms.body + drive.file scopes and,
+    after creation, shares the file as a reader with every comma-separated email in
+    GOOGLE_FORM_SHARE_WITH. Sharing failures are warnings only; the form still works
+    for the service account. README/.env.example now explain enabling Forms + Drive
+    APIs, sharing the Sheet with the service account, and the one-line JSON key.
+  * POST /api/google-forms/lead accepts {response_id, form_id, fields} and now also
+    accepts an explicit survey_id. It normalizes phone/name/city/email, dedupes by
+    response_id, links by survey_id first and google_form_id second, creates a minimal
+    Member + Referral for valid responses, and writes a GoogleFormLead row with
+    source "Google Form".
   * Invalid/unlinked responses are still stored with status "needs review" and the
     endpoint returns 422 with a safe reason.
   * Every ingest/sync rewrites data/google_form_leads.xlsx (or
-    GOOGLE_FORM_XLSX_PATH); POST /api/admin/google-forms/sync can pull from a linked
-    Google Sheet using GOOGLE_FORM_RESPONSES_SHEET_ID.
+    GOOGLE_FORM_XLSX_PATH). POST /api/admin/google-forms/sync pulls from a linked
+    Google Sheet when credentials + GOOGLE_FORM_RESPONSES_SHEET_ID exist; if those
+    are absent it falls back to data/google_form_responses.csv (override with
+    GOOGLE_FORM_RESPONSES_LOCAL_PATH). In local mode a survey_id column can target a
+    survey directly and, if there is no linked survey, the first survey is used.
+    Genuine Sheet/API errors are not hidden by the fallback: they still surface as
+    FormsError/502. The response now includes mode, synced, duplicates, failed,
+    errors, and xlsx.
   * GOOGLE_FORMS_WEBHOOK_SECRET enables HMAC verification via
     X-Google-Forms-Signature-256: sha256=<hmac-sha256 of raw body>.
+  * The bundled data/google_form_responses.csv has 2 local demo responses
+    (local-demo-response-001/002) so the sync button works with zero configuration.
 
 RATE LIMITS
   * OTP attempts are per phone; signup/OTP IP limits use a sliding window.
@@ -494,7 +548,9 @@ FRONTEND METHODS / UX
   * Sticky admin filter bar measured with ResizeObserver (--admin-header-h).
   * Modal replaced prompt()/alert() for destructive actions, including batch payouts.
   * Admin Surveys screen shows Google Form links, response sync, and .xlsx download;
-    member Home screen links to the matching form and labels demo links.
+    member Home screen links to the matching form and labels demo links. The
+    2026-11-27 toast now names the sync source ("Local demo responses" vs
+    "Google Sheet") and reports how many responses were already stored.
   * Admin/member payout tables and referral bonuses display UTR transaction IDs.
   * Light/dark/system theme persisted in localStorage vb_theme.
   * SPA fallback allows direct deep links; Vite dev proxy sends /api to localhost:8000.
@@ -531,9 +587,12 @@ SEC6 — server-side PII masking (571a0d2)
   * Response models in schemas.py: MeOut, SurveyOut, StatusOut, ReferralOut, etc.
   * _PhoneMasked serializer masks phone numbers on member-facing responses.
 
-SEC7 — headers and CORS verification (7a8d8bf)
+SEC7 — headers and CORS verification (7a8d8bf; 2026-11-27 CSP update)
   * nosniff, DENY, no-referrer, conservative CSP on responses.
   * CORS exact allowlist and credentials checked by tests.
+  * main.py adds `font-src 'self' data:` to the CSP for bundled fonts; the
+    expected-CSP constant in tests/test_security_headers.py was updated to match,
+    so the final suite passes.
 
 SEC8 — fail-closed error handling (5152b6b)
   * Eligibility exceptions return Rejected / "System error — please retry".
@@ -559,9 +618,13 @@ HONEST PROTOTYPE LIMITS
 PART 8 — VALIDATION EVIDENCE
 --------------------------------------------------------------------------------
 BACKEND TESTS
-  Command: cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
-   Final result: 132 passed.
-   Test modules present (26 + conftest):
+   Command: cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
+    132 passed before the 2026-11-27 batch; 136 passed in 50.18s after the
+    .env/Forms-sync batch; final verification after aligning the CSP test
+    expectation: 136 passed in 45.61s.
+    tests/test_security_headers.py now expects the `font-src 'self' data:` CSP
+    value; no known failures remain.
+    Test modules present (26 + conftest):
 
     test_admin_null_checks.py, test_admin_surveys.py, test_api.py,
     test_attribution_security.py, test_audit.py, test_auth.py,
@@ -582,9 +645,13 @@ BACKEND TESTS
     * Referral stages, payout approval gate, batch approval.
     * Meta lead dedupe, HMAC signature, admin lead views, auth.
     * Payout UTR generation, backfill, unique visibility, and masking checks.
-    * Google Form creation/mock links, response ingest, dedupe, source labelling,
-      invalid-response review queue, .xlsx export, Sheet sync, and webhook HMAC.
-    * CSV preview/commit, real 189-row sample, date/referrer/unknown source handling.
+     * Google Form creation/mock links, response ingest, dedupe, source labelling,
+       invalid-response review queue, .xlsx export, Sheet sync, and webhook HMAC.
+     * 2026-11-27 additions: local CSV sync fallback with survey_id targeting and
+       dedupe on a second run, bundled 2-row CSV presence, real Sheet errors
+       surfacing as 502 (no silent fallback), Drive sharing calls for configured
+       emails, and .env loading that does not override shell values.
+     * CSV preview/commit, real 189-row sample, date/referrer/unknown source handling.
     * Fraud flags, burst detection via forwarded header, ring scan.
     * Sheets status behavior, touch logging, seed demo data.
     * Security headers, log sanitization, fail-closed behavior, repo hygiene.
@@ -593,30 +660,42 @@ BACKEND TESTS
   parallel pytest processes against the same test DB.
 
 FRONTEND BUILD
-  Command: cd frontend && npm run build
-  Final result: passed. Output: frontend/dist (gitignored).
+   Command: cd frontend && npm run build
+   Final result on 2026-11-27: passed (Vite 6.4.6, 64 modules, ~5.53s).
+   Output: frontend/dist (gitignored).
 
 DEPENDENCY AUDIT
-  Command: cd backend && python -m pip_audit -r requirements.txt
-  Final result: No known vulnerabilities.
+   Command: cd backend && python -m pip_audit -r requirements.txt
+   Earlier SEC10 result: No known vulnerabilities.
+   2026-11-27 result: not re-run — pip_audit is not installed in the current
+   interpreter (No module named pip_audit). requirements.txt was not changed by
+   the 2026-11-27 batch, so the earlier clean result still applies to the pinned
+   dependencies, but it is not a fresh proof.
 
 GIT HYGIENE
-   Before this updated.txt rewrite: backend and frontend feature commits were clean
-   and pushed through 24caea2; only README.md and updated.txt remained for the
-   final documentation commit.
+   HEAD is the 2026-11-27 batch commit on top of 2f6c5f7, pushed to remote main
+   directly by HTTPS URL. The batch includes the CSP expectation fix and the
+   bundled demo CSV. `git diff --check` reported no whitespace errors
+   (only LF -> CRLF warnings).
+   No tracked .env, .db, __pycache__, .pyc, .venv, node_modules, frontend/dist,
+   logs, or .pytest_cache files were found.
 
-  Tracked files exclude .env, *.db, __pycache__, *.pyc, .venv, node_modules,
-  frontend/dist, logs, and .pytest_cache via .gitignore.
+   TASKS_left.txt is a stale planning note from an earlier stage that was included
+   in the batch as historical context; this updated.txt is authoritative.
 
 --------------------------------------------------------------------------------
 PART 9 — DOCS, DESIGN, AND DATA ARTIFACTS
 --------------------------------------------------------------------------------
 README.md
-  * 9 sections: overview, tech stack, setup, demo logins, feature table, DB design,
-    endpoints/research, decisions, known issues/roadmap.
-  * Security posture subsection added in SEC10 with enforced controls, prototype
-    limitations, dependency audit note, and explicit non-claim line.
-  * Demo credentials and walkthrough guidance are documented.
+   * 9 sections: overview, tech stack, setup, demo logins, feature table, DB design,
+     endpoints/research, decisions, known issues/roadmap.
+   * Security posture subsection added in SEC10 with enforced controls, prototype
+     limitations, dependency audit note, and explicit non-claim line.
+   * Demo credentials and walkthrough guidance are documented.
+   * 2026-11-27 working-tree update: documents that backend/.env is auto-loaded,
+     gives a Groq LLM_BASE_URL/LLM_MODEL example, explains the one-line Google
+     service-account JSON and GOOGLE_FORM_SHARE_WITH, and updates the Google Forms
+     row to mention the local CSV response fallback.
 
 CHECKLIST.md
   * Tracks P0 core, UI/UX, code quality, security posture, Tier-2, Tier-3, docs,
@@ -635,27 +714,34 @@ design/
   Frozen Day-2 diagrams use Mermaid/Graphviz; changes are appended, not rewritten.
 
 data/
-  viewbox_respondents_sample.csv
-    189 data rows, 13 columns, deliberately messy: mixed date formats, +91 phones,
-    M/F/female gender values, duplicate phone, blank phone cells, free-text sources,
-    many blank completion dates.
-  messy_sample.csv
-    6 small rows with padded names, invalid date, duplicate phone for quick demos.
+   viewbox_respondents_sample.csv
+     189 data rows, 13 columns, deliberately messy: mixed date formats, +91 phones,
+     M/F/female gender values, duplicate phone, blank phone cells, free-text sources,
+     many blank completion dates.
+   messy_sample.csv
+     6 small rows with padded names, invalid date, duplicate phone for quick demos.
+   google_form_responses.csv (NEW, untracked as of 2026-11-27)
+     2 rows + header: local-demo-response-001/002, names, phones, cities, emails.
+     Read by POST /api/admin/google-forms/sync when Google credentials/Sheet ID are
+     absent, so the admin sync button and demo flow work with zero configuration.
 
 ROOT
-  .gitignore covers local artifacts.
-  updated.txt is this record.
-  design/ diagrams supersede older root copies where present.
+   .gitignore covers local artifacts.
+   updated.txt is this record.
+   TASKS_left.txt is an untracked stale task note, not current status.
+   design/ diagrams supersede older root copies where present.
 
 --------------------------------------------------------------------------------
 PART 10 — GIT HISTORY / DELIVERY STATUS
 --------------------------------------------------------------------------------
-   Total commits: 74 before the final documentation commit, all on main.
-   Local HEAD before the final documentation commit: 24caea2.
-   Remote main was advanced in separate pushes through 24caea2.
+   Total commits: 75 on main, all local; HEAD is 2f6c5f7.
+   Remote main was advanced in separate pushes through 2f6c5f7, then to the
+   2026-11-27 batch commit; `git ls-remote` confirmed remote main was at 2f6c5f7
+   immediately before the final push.
    Remote URL: https://github.com/krishbhatiaa/ViewBOX---Concave-Insights.git
-   No named origin alias; pushes were made directly to the HTTPS URL.
+   No named origin alias; pushes are made directly to the HTTPS URL.
    No tags, no stashes.
+   The 2026-11-27 changes form one commit on top of 2f6c5f7 and are pushed.
 
   Older 15 commits were authored Developer <dev@example.com>; newer commits use
   Krish Bhatia <142397285+krishbhatiaa@users.noreply.github.com>.
@@ -735,21 +821,28 @@ COMMIT LEDGER (oldest -> newest)
    94a8a22 style: layouts and navigation
    e80fd97 feat: add payout UTRs and Google Forms lead pipeline
    24caea2 feat: surface UTRs and Google Forms in portal and admin UI
-   (final docs commit) docs: refresh build record and video-ready status
+   2f6c5f7 docs: refresh build record and video-ready status
 
 --------------------------------------------------------------------------------
 PART 11 — HOW TO RUN / VERIFY LOCALLY
 --------------------------------------------------------------------------------
 BACKEND (from C:\Users\Admin\Desktop\ViewBOX1\viewbox\backend)
 
-  python -m pip install -r requirements.txt
-  python -m app.seed                       # optional/destructive demo reset
+   python -m pip install -r requirements.txt
+   copy .env.example .env                   # optional; auto-loaded on startup
+   python -m app.seed                       # optional/destructive demo reset
    uvicorn app.main:app --host 127.0.0.1 --port 8000
    Open: http://127.0.0.1:8000/docs
-   Optional: copy .env.example to .env and set GOOGLE_SERVICE_ACCOUNT_JSON for
-   live Form creation, GOOGLE_FORM_RESPONSES_SHEET_ID for Sheet sync,
-   GOOGLE_FORMS_WEBHOOK_SECRET for signed responses, and GOOGLE_FORM_XLSX_PATH
-   to relocate google_form_leads.xlsx. Without these the demo fallback is used.
+   backend/.env is read automatically by backend/app/__init__.py; restart uvicorn
+   after editing it. Shell/CI environment variables take precedence over file values.
+   Useful keys: LLM_API_KEY/LLM_BASE_URL/LLM_MODEL for Groq-style rule suggestions,
+   GOOGLE_SERVICE_ACCOUNT_JSON (one-line JSON) for live Forms/Sheets,
+   GOOGLE_FORM_SHARE_WITH for reader access to created Forms,
+   GOOGLE_FORM_RESPONSES_SHEET_ID + GOOGLE_FORM_RESPONSES_WORKSHEET for live sync,
+   GOOGLE_FORM_RESPONSES_LOCAL_PATH to replace the bundled demo CSV,
+   GOOGLE_FORMS_WEBHOOK_SECRET for signed responses, and GOOGLE_FORM_XLSX_PATH to
+   relocate google_form_leads.xlsx. Without Google credentials the local demo CSV
+   and mock Form links are used. No backend/.env existed at verification time.
 
 FRONTEND (from C:\Users\Admin\Desktop\ViewBOX1\viewbox\frontend)
 
@@ -764,20 +857,26 @@ PRODUCTION-LIKE SPA
   Backend then serves frontend/dist with deep-link fallback.
 
 VALIDATION
-  cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
-  cd frontend && npm run build
-  cd backend && python -m pip_audit -r requirements.txt
+   cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
+     -> final verification: 136 passed (CSP expectation aligned);
+        132 passed before the 2026-11-27 batch.
+   cd frontend && npm run build
+     -> passed on 2026-11-27.
+   git diff --check
+     -> no whitespace errors on 2026-11-27.
+   cd backend && python -m pip_audit -r requirements.txt
+     -> earlier clean result only; module is not installed in the current interpreter.
 
 --------------------------------------------------------------------------------
 PART 12 — HONEST REMAINING WORK / PROTOTYPE GAPS
 --------------------------------------------------------------------------------
 DELIVERY
-   * All local commits were pushed in separate pushes through 24caea2; the final
-     documentation commit is pushed after this record is written.
+   * All local commits, including the 2026-11-27 batch, are pushed to remote main.
    * Fresh clone setup not proven end-to-end; README "~2 min" remains a claim.
-   * No CI. Walkthrough video is scheduled for the day after this record; no final
-     Day-2/Day-7 email proof is included.
-   * Remote has no named origin alias; pushes were made directly by HTTPS URL.
+   * No CI. A video-ready demo flow exists in Part 14, but no 3-5 minute
+     walkthrough recording or final Day-2/Day-7 email proof is included.
+   * Remote has no named origin alias; pushes are made directly by URL, and
+     remote state is checked with `git ls-remote` when needed.
 
 
 PLATFORM
@@ -801,10 +900,16 @@ PRODUCT
   * Grid evaluates eligibility per row (N+1 style queries).
 
 TESTING
-   * Backend has 132 tests and passes serially; frontend still has no native tests.
+    * Backend has 136 tests and runs serially; frontend still has no native tests.
+      The CSP header test is aligned with the intentional font-src change and
+      passes in the final verification.
 
-  * No UI automation, no lint, no CI enforcement.
-  * Parallel pytest runs can collide on the shared temp SQLite DB.
+   * No UI automation, no lint, no CI enforcement.
+   * Parallel pytest runs can collide on the shared temp SQLite DB.
+   * Live Google API/Sheet calls are not integration-tested: form sharing uses a
+     fake HTTP client and Sheet failures are simulated by monkeypatch.
+   * pip-audit is not installed in the current interpreter; the earlier clean
+     result was not refreshed on 2026-11-27.
 
 DOCUMENTATION
    * Design diagrams are frozen at the original 13-table baseline; authoritative
@@ -818,12 +923,10 @@ SECURITY POSTURE
   * This remains a prototype and is not claimed to be unhackable.
 
 --------------------------------------------------------------------------------
-PART 13 — LOCAL RUN VERIFICATION (2026-11-26, FINAL)
+PART 13 — LOCAL RUN VERIFICATION (2026-11-26 run; re-checked 2026-11-27)
 --------------------------------------------------------------------------------
-  Both ports were verified live at the time this record was finalized.
-
-  COMBINED RUNTIME
-    A single detached Python process (listener PID 14316) serves:
+  Historical live check on 2026-11-26:
+    A single detached Python process (listener PID 14316) served:
       * FastAPI backend on 127.0.0.1:8000
       * Built React SPA on 127.0.0.1:5173 with a stdlib /api proxy to port 8000
     Verified HTTP 200:
@@ -838,13 +941,21 @@ PART 13 — LOCAL RUN VERIFICATION (2026-11-26, FINAL)
     For a normal machine, `npm run dev -- --host 127.0.0.1 --port 5173` remains
     the documented frontend command.
 
-  VERIFICATION COMMANDS
+  Current 2026-11-27 check:
+    Get-NetTCPConnection -State Listen -LocalPort 8000,5173 returned no listeners.
+    The earlier live harness is not running now; restart the backend and frontend
+    with the Part 11 commands before recording the Part 14 demo.
+
+   VERIFICATION COMMANDS (2026-11-27)
     cd backend && python -m pytest -q -p no:warnings -p no:cacheprovider
-      Result: 132 passed in ~43s.
+      Result before CSP tweak: 136 passed in 50.18s.
+      Final result after aligning the CSP test expectation: 136 passed in 45.61s.
     cd frontend && npm run build
-      Result: built in ~11s; dist/index.html + hashed JS/CSS emitted.
+      Result: built in 5.53s; dist/index.html + hashed JS/CSS emitted.
     git diff --check
-      Result: no whitespace errors.
+      Result: no whitespace errors (LF -> CRLF warnings only).
+    python -m pip_audit -r requirements.txt
+      Result: unavailable in the current interpreter (earlier SEC10 run was clean).
 
 --------------------------------------------------------------------------------
 PART 14 — VIDEO-READY DEMO FLOW (record after this update)
@@ -858,7 +969,10 @@ PART 14 — VIDEO-READY DEMO FLOW (record after this update)
        * Create a new survey with rules; point out the Google Form link returned
          by POST /api/admin/surveys (live API if credentials exist, otherwise a
          clearly-labelled local demo link).
-       * Show the Sync Google Form responses and Download leads .xlsx buttons.
+        * Show the Sync Google Form responses and Download leads .xlsx buttons.
+          With no Google credentials configured, the sync toast should say
+          "Local demo responses synced ..." and the two rows from
+          data/google_form_responses.csv should become Google Form leads.
   4. Google Form response intake:
        * POST /api/google-forms/lead with response_id, form_id, and fields.
        * When GOOGLE_FORMS_WEBHOOK_SECRET is set, include
@@ -875,24 +989,126 @@ PART 14 — VIDEO-READY DEMO FLOW (record after this update)
      limits: no real SMS/payments, SQLite + runtime migration shim, in-process
      rate limits, and no production secret manager.
 
-  DEMO PAYLOAD (Google Form response)
-    {
-      "response_id": "gf-demo-001",
-      "form_id": "<google_form_id from the survey row>",
-      "fields": {
-        "Full name": "Demo Respondent",
-        "Phone number": "+91 98600 10009",
-        "City": "Pune",
-        "Email": "demo@example.test"
-      }
-    }
+   DEMO PAYLOAD (Google Form response)
+     {
+       "response_id": "gf-demo-001",
+       "form_id": "<google_form_id from the survey row>",
+       "survey_id": "<numeric survey id; optional if form_id is set>",
+       "fields": {
+         "Full name": "Demo Respondent",
+         "Phone number": "+91 98600 10009",
+         "City": "Pune",
+         "Email": "demo@example.test"
+       }
+     }
 
-  DELIVERY STATUS
-    * Commits e64f5b9, b5eb77c, and 94a8a22 were pushed one by one.
-    * Feature commits e80fd97 and 24caea2 were pushed one by one.
-    * This final documentation commit is pushed after updated.txt and README.md
-      are staged.
-    * Code is ready for the scheduled walkthrough recording.
+    CURRENT DELIVERY STATUS
+      * Earlier record: style commits e64f5b9/b5eb77c/94a8a22 and feature commits
+        e80fd97/24caea2 were pushed one by one, followed by docs commit 2f6c5f7.
+      * The 2026-11-27 .env/Forms sync batch is committed on top of 2f6c5f7 and
+        pushed to remote main.
+      * No walkthrough video has been recorded yet; ports 8000/5173 were not running
+        at verification time. Code is ready to be started and recorded.
+--------------------------------------------------------------------------------
+PART 15 — FINALIZED WORK BATCH (2026-11-27)
+--------------------------------------------------------------------------------
+  Status: committed on top of 2f6c5f7 and pushed to remote main. This is the newest
+  work and supplements (does not replace) Parts 0-14, which remain the record of
+  all earlier work.
+
+  WHY THIS BATCH
+    The Google Forms sync button still required real Google credentials and a
+    Sheet ID, so the demo/QA flow could not exercise it on a clean machine. The
+    batch adds a zero-configuration local response source, makes environment
+    setup automatic, documents the real Google setup steps, and fixes the live
+    Form link visibility problem by sharing created Forms with configured users.
+
+  FILE-BY-FILE CHANGE LOG
+    1. backend/app/__init__.py (new content; file was previously empty)
+       - load_env() reads backend/.env on import without python-dotenv.
+       - Handles BOM, blank lines, comments, `export KEY=...`, single/double
+         quotes, escaped quotes, and `KEY=value # comment`.
+        - Uses os.environ.setdefault(); shell/CI values are never overwritten.
+        - Startup behavior: importing any `app.*` module triggers it once.
+
+    2. backend/app/services/google_forms.py
+       - Added csv import, FormsNotConfigured(FormsError), and FORM_SCOPES
+         (forms.body + drive.file).
+       - _share_form() grants reader access via Drive permissions to each email
+         in GOOGLE_FORM_SHARE_WITH; failures are logged warnings, not form errors.
+       - _google_form() uses the broader scopes and shares after batchUpdate.
+       - _open_responses_sheet() raises FormsNotConfigured only when
+         GOOGLE_SERVICE_ACCOUNT_JSON and a Sheet ID are missing. Real Google
+         errors remain FormsError and reach the router as 502.
+       - _local_responses_path() defaults to data/google_form_responses.csv,
+         overridable by GOOGLE_FORM_RESPONSES_LOCAL_PATH.
+       - _read_local_responses() parses UTF-8-BOM CSV via csv.DictReader.
+       - sync_from_sheet() falls back to local rows in "local" mode, honours an
+         integer survey_id column, keeps the previous form_id/default-survey
+         behavior, and returns `mode` alongside synced/duplicates/failed/errors/xlsx.
+       - In local mode with no linked survey, the first survey by id is used as
+         the default so bundled rows can still attach to a survey.
+
+    3. data/google_form_responses.csv (new, untracked)
+       - Two demo responses with response_id, timestamp, Full name, Phone number,
+         City, and Email Address columns.
+
+    4. frontend/src/pages/admin/SurveysPage.jsx
+       - Sync toast now reports "Local demo responses" vs "Google Sheet", plus
+         duplicate count, so the mode is visible in the UI.
+
+    5. backend/.env.example and README.md
+       - Groq LLM example: LLM_BASE_URL=https://api.groq.com/openai/v1 and
+         LLM_MODEL=llama-3.3-70b-versatile.
+       - Google setup: enable Forms + Drive APIs, one-line service-account JSON,
+         GOOGLE_FORM_SHARE_WITH, responses Sheet ID/worksheet, local CSV path,
+         and .env auto-load/restart note.
+       - README Google Forms feature row now mentions the local CSV sync source.
+
+    6. backend/tests/conftest.py
+       - Clears Google/LLM-related env keys per client fixture so a developer's
+         real .env or shell cannot leak into unrelated tests.
+
+    7. backend/tests/test_google_forms.py (+3 tests)
+       - Local CSV fallback sync creates one lead, reports mode="local", honours
+         survey_id, dedupes on a second sync, and confirms the bundled CSV exists.
+       - Real Sheet/API errors produce 502 instead of being masked as local mode.
+       - _share_form() calls Drive permissions for both configured emails and
+         FORM_SCOPES includes drive.file.
+
+    8. backend/tests/test_repo_hygiene.py (+1 test)
+       - load_env() fills missing keys, unquotes values, and preserves an existing
+         shell environment value.
+
+     9. updated.txt (this file)
+        - Refreshed prior record and appended this batch so "before" and "now" are
+          both represented.
+
+     10. backend/app/main.py and backend/tests/test_security_headers.py
+         - CSP changed from
+           "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+           to the same string plus "font-src 'self' data:" so bundled fonts can load.
+         - tests/test_security_headers.py was updated to expect the new CSP value,
+           resolving the exact-string mismatch before the final commit.
+
+   VALIDATION OF THIS BATCH
+      - python -m pytest -q -p no:warnings -p no:cacheprovider:
+        132 passed initially; 136 passed after the .env/Forms-sync work;
+        final verification 136 passed after the CSP test expectation was aligned.
+     - npm run build: passed (Vite 6.4.6, 64 modules).
+     - git diff --check: no whitespace errors.
+     - python -m pip_audit -r requirements.txt: module unavailable now; no
+       dependency files changed in this batch.
+
+   NOT PROVEN / NOT FIXED IN THIS BATCH
+     - No real Google Forms/Sheets API call, no real Drive share acceptance, and
+       no live webhook with GOOGLE_FORMS_WEBHOOK_SECRET were exercised.
+     - No real Groq/OpenAI key was used; rule suggestions remain covered by the
+       offline heuristic path and existing tests.
+      - The CSP test mismatch was resolved by aligning the expected header value.
+      - No fresh-machine clone/install proof, no CI, no walkthrough video.
+      - All changes are committed and pushed; a final verification run was green.
+
 ================================================================================
 END
 ================================================================================

@@ -54,6 +54,9 @@ def client():
     from app.main import app
     from app.models import AdminUser, SessionLocal, Source
     from app import security as sec
+    for key in ("GOOGLE_SERVICE_ACCOUNT_JSON", "GOOGLE_FORMS_WEBHOOK_SECRET", "LLM_API_KEY",
+                "GOOGLE_FORM_RESPONSES_SHEET_ID", "SPREADSHEET_ID", "GOOGLE_FORM_RESPONSES_LOCAL_PATH"):
+        os.environ.pop(key, None)
     db = SessionLocal()
     if not db.query(AdminUser).filter_by(email="admin@viewbox.test").first():
         db.add(AdminUser(email="admin@viewbox.test", password_hash=sec.hash_pw("admin123456")))

@@ -206,7 +206,8 @@ export default function SurveysPage() {
     setSyncing(true);
     try {
       const result = await api("/api/admin/google-forms/sync", { method: "POST", role: "admin" });
-      toast(`Synced ${result.synced} Google Form response(s)${result.failed ? `, ${result.failed} failed` : ""}`);
+      const source = result.mode === "local" ? "Local demo responses" : "Google Sheet";
+      toast(`${source} synced ${result.synced} response(s)${result.duplicates ? `, ${result.duplicates} already stored` : ""}${result.failed ? `, ${result.failed} failed` : ""}`);
       if (result.failed) toast((result.errors || []).join(" ") || "Some responses could not be stored.", "error");
     } catch (err) {
       toast(`Sync failed: ${err.message}`, "error");

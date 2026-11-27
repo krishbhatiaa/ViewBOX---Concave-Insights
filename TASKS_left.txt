@@ -1,0 +1,63 @@
+Remaining grouped:
+
+A. Housekeeping (quick, should do now)
+1. Commit the P1 work (uncommitted:9 modified + 4 new files) — also checklist §9 wants small meaningful commits with feat:/fix:/docs: messages + real author name/email
+2. Tick checklist items already done: frontend folders (components/pages/hooks/api.js exist), React+Vite+Tailwind port (done)
+
+B. UI/UX section (30% of score — biggest untouched area)
+- Per-screen empty/loading/error states confirmation (10 screens)
+- 360px responsive test, no sideways scroll
+- Touch targets/focus/labels/contrast
+- Inline field errors in plain words
+- Success toasts (Toast.jsx exists — verify wired for add source, stage change, import)
+- Copy-to-clipboard for referral/source links
+- Sticky filter bar + Export button on grid
+- Consistent design tokens
+
+C. Features still Not done
+- Tier 3 pick ONE: (a) ML badge (b) LLM rule suggestion (c) Razorpay sandbox payout — README has full Razorpay plan; suggested (b)
+- Meta leads admin view + per-campaign breakdown (bonus5)
+- Design: add Create survey screen to user flow (or remove), design/03_changes_day5.md after Day2 rule
+
+D. Final QA
+- Fresh clone + README run <5min
+- Demo data on first run
+- Test matrix (partly covered by pytest — age17, forged link, bad CSV, dup Meta are tested; wrong city strict/flexible, full quota, past deadline, cool-off date — cool-off tested; quota/deadline maybe not)
+- No secrets/.env/.db/pycache in repo (verified .db/.env not tracked; pycache check needed)
+- Emails (process, user's job)
+
+E. Not required by checklist but listed in README known issues
+- UI tests
+- Video walkthrough (§10 — required actually, section 10 is unchecked:3-5min video)
+
+The video (§10) is a checklist section — required for submission.
+
+Also git: "public repo, real author/email" — process.
+
+Let me also quickly verify pycache not tracked and whether .gitignore covers it: git ls-files | grep pycache — earlier git ls-files pattern included pycache and found nothing (output was just "---"). So fine.
+
+Quota/deadline tests: pytest has test_eligibility_approved_rejected_waitlisted — may cover quota/deadline? Unknown. Test matrix item is manual QA anyway.
+
+Now, should I tick the two "already done" items? I'll do it — it's accurate and low risk. Actually the user asked "what all is remaining" — an informational question. Per guidance: answer first, don't jump into actions. I'll answer, noting the two items that are already done but unticked, and offer to tick them / proceed with next priorities.
+
+Actually, minor action of ticking 2 boxes could be considered part of answering accurately... but guidance says answer first, don't jump into actions. I'll just report. Keep it concise but complete — this is a "what's remaining" status question, some detail warranted. Use short grouped bullets.
+Here's what's left, by area:
+Quick housekeeping
+- Commit the P1 work (9 modified + 4 new files, all uncommitted) — checklist §9 also wants small feat:/fix: commits with real author/email
+- 2 checklist items are actually already done but unticked: "Frontend folders" (you have components/ hooks/ pages/ api.js) and "React + Vite + Tailwind port" — just need ticking
+UI/UX — section 2, 30% of the score, biggest untouched area
+- Per-screen empty/loading/error states confirmed on all 10 screens (README says "manually checked")
+- 360px phone test, no sideways scroll; touch targets ≥44px, focus, labels, contrast
+- Inline field errors in plain words; success toasts after add-source/stage-change/import (Toast.jsx exists — needs verifying it's wired)
+- Copy-to-clipboard for referral/source links; sticky filter bar + Export button on grid; consistent design tokens
+Features not built
+- Tier 3 — pick exactly one: (a) ML completion badge, (b) LLM rule suggestion with admin approve, (c) Razorpay sandbox payout (README §8.3 already has the full plan; checklist suggests b)
+- Meta leads admin view + per-campaign breakdown (bonus 5)
+- Design: add "Create survey" screen to the user flow (it's built) + design/03_changes_day5.md for post-Day-2 edits
+Final QA (§11)
+- Fresh git clone → follow README → <5 min; demo data on first run
+- Test matrix (quota, deadline, strict-vs-flexible city — several cases only covered manually)
+- Confirm no __pycache__/.env/.db tracked (.db/.env already verified clean)
+Submission items (your call)
+- §10 walkthrough video (3–5 min), §9 public repo, Day 7 email to miloni@concaveinsights.com
+Not required: UI tests (README notes pytest covers the backend).
